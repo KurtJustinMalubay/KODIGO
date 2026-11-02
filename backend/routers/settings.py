@@ -54,15 +54,17 @@ async def available_models(body: dict = Body(...), db: Session = Depends(get_db)
     if provider not in AI_PROVIDERS:
         raise HTTPException(400, "Unsupported AI provider.")
     try:
-        models = await list_models(
+        result = await list_models(
             provider,
             body.get("cloud_api_key") or settings.cloud_api_key,
             body.get("ollama_url") or settings.ollama_url,
         )
+        if isinstance(result, dict):
+            return result
+        return {"models": result, "verified": True, "message": ""}
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     except Exception as error:
         raise HTTPException(
-            502, "Could not load models. Check the provider, API key, and connection."
+            502, f"Could not load models: {str(error)}"
         ) from error
-    return {"models": models}
