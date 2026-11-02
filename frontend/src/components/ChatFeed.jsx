@@ -15,7 +15,7 @@ function AiMessage({ message }) {
     if (explanations[key] || busy) return;
     setBusy(key);
     try {
-      const result = await api.explain(message.id, key === "all" ? null : Number(key));
+      const result = await api.explain(message.id, key === "all" ? null : Number(key), message);
       setExplanations((previous) => ({ ...previous, [key]: result.explanation }));
     } catch (error) {
       setExplanations((previous) => ({ ...previous, [key]: "⚠️ " + error.message }));

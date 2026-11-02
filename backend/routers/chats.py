@@ -176,17 +176,31 @@ def get_messages(
 
 @router.post("/api/chats/{chat_id}/messages")
 async def send_message(
-    chat_id: int,
+    chat_id: str,
     request: Request,
     content: str = Form(""),
     mode: str = Form("quiz"),
     image: UploadFile = File(None),
     client_ocr_text: str = Form(""),
+    history_json: str = Form(""),
+    context_text: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    chat = db.get(Chat, chat_id)
+    # Lookup chat if integer ID, or create transient record if needed
+    chat = None
+    try:
+        chat = db.get(Chat, int(chat_id))
+    except Exception:
+        pass
+
     if not chat:
-        raise HTTPException(404, "Chat not found")
+        try:
+            chat = Chat(id=int(chat_id) if str(chat_id).isdigit() else None)
+            db.add(chat)
+            db.commit()
+            db.refresh(chat)
+        except Exception:
+            chat = Chat()
 
     image_url, ocr_text = None, ""
     # Per-request settings: uses device's private credentials from headers
@@ -209,15 +223,23 @@ async def send_message(
         mode = "chat"
 
     system = QUIZ_SYS if mode == "quiz" else CHAT_SYS
-    context = build_context(db, chat_id)
-    if context:
-        system += "\n\nReference material:\n" + context
+
+    # Priority to device-passed reference context
+    reference_corpus = context_text.strip() if context_text else (build_context(db, chat.id) if chat.id else "")
+    if reference_corpus:
+        system += "\n\nReference material:\n" + reference_corpus[:12000]
 
     history = []
-    if mode == "chat":
+    if history_json and history_json.strip():
+        import json
+        try:
+            history = json.loads(history_json)
+        except Exception:
+            history = []
+    elif mode == "chat" and chat.id:
         previous = (
             db.query(Message)
-            .filter_by(chat_id=chat_id)
+            .filter_by(chat_id=chat.id)
             .order_by(Message.id.desc())
             .limit(10)
             .all()
@@ -236,60 +258,95 @@ async def send_message(
     except Exception as error:
         raise HTTPException(502, f"AI provider error: {error}") from error
 
-    user_message = Message(
-        chat_id=chat_id,
-        sender="user",
-        mode=mode,
-        content=text,
-        image_path=image_url,
-    )
-    ai_message = Message(chat_id=chat_id, sender="ai", mode=mode, content=reply)
-    db.add_all([user_message, ai_message])
-    if chat.title == "New Chat":
-        chat.title = (content or text)[:40]
-    chat.updated_at = datetime.utcnow()
-    db.commit()
+    user_data = {
+        "chat_id": chat.id or chat_id,
+        "sender": "user",
+        "mode": mode,
+        "content": text,
+        "image_path": image_url,
+    }
+    ai_data = {
+        "chat_id": chat.id or chat_id,
+        "sender": "ai",
+        "mode": mode,
+        "content": reply,
+    }
+
+    try:
+        if chat.id:
+            user_msg_db = Message(**user_data)
+            ai_msg_db = Message(**ai_data)
+            db.add_all([user_msg_db, ai_msg_db])
+            if chat.title == "New Chat":
+                chat.title = (content or text)[:40]
+            chat.updated_at = datetime.utcnow()
+            db.commit()
+            return {
+                "user": serialize(user_msg_db),
+                "ai": serialize(ai_msg_db),
+                "mode": mode,
+            }
+    except Exception:
+        pass
+
     return {
-        "user": serialize(user_message),
-        "ai": serialize(ai_message),
+        "user": {**user_data, "id": int(datetime.utcnow().timestamp() * 1000)},
+        "ai": {**ai_data, "id": int(datetime.utcnow().timestamp() * 1000) + 1},
         "mode": mode,
     }
 
 
 @router.post("/api/messages/{message_id}/explain")
 async def explain_message(
-    message_id: int,
+    message_id: str,
     request: Request,
     item: int | None = Body(None, embed=True),
+    question_content: str | None = Body(None, embed=True),
+    answer_content: str | None = Body(None, embed=True),
+    context_text: str | None = Body(None, embed=True),
     db: Session = Depends(get_db),
 ):
-    ai_message = db.get(Message, message_id)
-    if not ai_message:
-        raise HTTPException(404, "Message not found")
-    if item is None and ai_message.detailed_explanation:
+    ai_message = None
+    try:
+        ai_message = db.get(Message, int(message_id))
+    except Exception:
+        pass
+
+    if item is None and ai_message and ai_message.detailed_explanation:
         return {"explanation": ai_message.detailed_explanation}
 
-    question = (
-        db.query(Message)
-        .filter(
-            Message.chat_id == ai_message.chat_id,
-            Message.sender == "user",
-            Message.id < message_id,
+    q_text = question_content
+    a_text = answer_content or (ai_message.content if ai_message else "")
+
+    if not q_text and ai_message:
+        question = (
+            db.query(Message)
+            .filter(
+                Message.chat_id == ai_message.chat_id,
+                Message.sender == "user",
+                Message.id < ai_message.id,
+            )
+            .order_by(Message.id.desc())
+            .first()
         )
-        .order_by(Message.id.desc())
-        .first()
-    )
+        if question:
+            q_text = question.content
+
     target = f"item #{item} only" if item else "every item"
     prompt = (
-        f"Questions:\n{question.content if question else ''}\n\n"
-        f"Given answers:\n{ai_message.content}\n\n"
+        f"Questions:\n{q_text or ''}\n\n"
+        f"Given answers:\n{a_text or ''}\n\n"
         f"Give a detailed step-by-step explanation/proof for {target}. "
         "Use LaTeX ($...$, $$...$$) for math."
     )
     system = CHAT_SYS
-    context = build_context(db, ai_message.chat_id)
-    if context:
-        system += "\n\nReference material:\n" + context
+
+    ref_context = (context_text or "").strip()
+    if not ref_context and ai_message:
+        ref_context = build_context(db, ai_message.chat_id)
+    if ref_context:
+        system += "\n\nReference material:\n" + ref_context[:12000]
+
     try:
         settings = resolve_effective_settings(db, request)
         text = await generate(
@@ -297,8 +354,13 @@ async def explain_message(
         )
     except Exception as error:
         raise HTTPException(502, f"AI provider error: {error}") from error
-    if item is None:
-        ai_message.has_explanation = True
-        ai_message.detailed_explanation = text
-        db.commit()
+
+    if item is None and ai_message:
+        try:
+            ai_message.has_explanation = True
+            ai_message.detailed_explanation = text
+            db.commit()
+        except Exception:
+            pass
+
     return {"explanation": text}
