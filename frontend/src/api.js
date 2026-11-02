@@ -1,13 +1,31 @@
+import { localDB } from "./db";
+import { extractTextOnDevice } from "./utils/imageOptimizer";
+
 export const API_BASE = (
   import.meta.env.VITE_API_URL || "https://kodigo-backend.onrender.com"
 ).replace(/\/$/, "");
 
 const SETTINGS_KEY = "kodigo_device_settings";
 
+export const DEFAULT_SETTINGS = {
+  provider: "gemini",
+  model_name: "gemini-2.0-flash",
+  ollama_url: "http://localhost:11434",
+  cloud_api_key: "",
+  ocr_provider: "paddleocr",
+  default_mode: "quiz",
+  font_size: "medium",
+  theme: "dark",
+  setup_complete: false,
+};
+
 export function getLocalSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    }
   } catch (e) {
     console.warn("Failed to load settings from localStorage:", e);
   }
@@ -24,7 +42,14 @@ export function saveLocalSettings(settings) {
 
 export function resolveUrl(path) {
   if (!path) return "";
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("blob:") ||
+    path.startsWith("data:")
+  ) {
+    return path;
+  }
   return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
@@ -61,69 +86,293 @@ const json = (method, body) => ({
   body: JSON.stringify(body),
 });
 
+/**
+ * 100% Local-First Architecture:
+ * - Chats, messages, references, images, and settings are stored entirely on the user's device (IndexedDB + localStorage).
+ * - OnRender backend functions strictly as a stateless compute engine for AI generation and OCR.
+ * - ZERO user data is stored on or lost by OnRender redeployments, restarts, or updates.
+ */
 export const api = {
-  chats: (limit = 200, offset = 0) =>
-    req(`/api/chats?limit=${limit}&offset=${offset}`),
-  newChat: () => req("/api/chats", { method: "POST" }),
-  pinChat: (id, is_pinned) =>
-    req(`/api/chats/${id}`, json("PATCH", { is_pinned })),
-  renameChat: (id, title) =>
-    req(`/api/chats/${id}`, json("PATCH", { title })),
-  exportChat: (id) => req(`/api/chats/${id}/export`),
-  importChat: (file) => {
-    const f = new FormData();
-    f.append("file", file);
-    return req("/api/chats/import", { method: "POST", body: f });
+  // === CHATS (Local-First IndexedDB) ===
+  chats: async () => {
+    return await localDB.getChats();
   },
-  delChat: (id) => req(`/api/chats/${id}`, { method: "DELETE" }),
-  batchChats: (chat_ids) => req("/api/chats/batch", json("POST", { chat_ids })),
-  messages: (id, limit = 200, offset = 0) =>
-    req(`/api/chats/${id}/messages?limit=${limit}&offset=${offset}`),
-  send: (id, content, mode, file, clientOcrText = "") => {
+
+  newChat: async (title = "New Chat") => {
+    return await localDB.createChat(title);
+  },
+
+  pinChat: async (id, is_pinned) => {
+    return await localDB.updateChat(id, { is_pinned });
+  },
+
+  renameChat: async (id, title) => {
+    return await localDB.updateChat(id, { title });
+  },
+
+  delChat: async (id) => {
+    return await localDB.deleteChat(id);
+  },
+
+  // === MESSAGES (Local-First IndexedDB) ===
+  messages: async (id) => {
+    return await localDB.getMessages(id);
+  },
+
+  // === AI INFERENCE (Stateless Backend Call + Local Persistence) ===
+  send: async (id, content, mode, file, clientOcrText = "") => {
+    // 1. Gather recent conversation history from local database
+    const localMsgs = await localDB.getMessages(id);
+    const history = localMsgs.slice(-10).map((m) => ({
+      role: m.sender === "user" ? "user" : "assistant",
+      content: m.content,
+    }));
+
+    // 2. Gather active references context text from local database
+    const contextText = await localDB.buildContextText(id);
+
+    // 3. Prepare payload for Render stateless AI compute
     const f = new FormData();
     f.append("content", content);
     f.append("mode", mode);
     if (file) f.append("image", file);
     if (clientOcrText) f.append("client_ocr_text", clientOcrText);
-    return req(`/api/chats/${id}/messages`, { method: "POST", body: f });
-  },
-  explain: (mid, item = null) =>
-    req(`/api/messages/${mid}/explain`, json("POST", { item })),
+    f.append("history_json", JSON.stringify(history));
+    f.append("context_text", contextText);
 
-  // Device-isolated settings: priority given to device's localStorage
-  settings: async () => {
-    const local = getLocalSettings();
-    if (local && local.setup_complete) {
-      return local;
+    // 4. Request AI inference from Render backend
+    const result = await req(`/api/chats/${id}/messages`, {
+      method: "POST",
+      body: f,
+    });
+
+    // 5. Convert image to Data URL on client so it persists permanently in IndexedDB even if Render disk resets
+    let localImagePath = result.user?.image_path || null;
+    if (file) {
+      try {
+        localImagePath = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve(result.user?.image_path || null);
+          reader.readAsDataURL(file);
+        });
+      } catch (e) {
+        console.warn("Failed to create local image data URL:", e);
+      }
     }
-    try {
-      const server = await req("/api/settings");
-      return { ...server, ...(local || {}) };
-    } catch {
-      return (
-        local || {
-          provider: "gemini",
-          model_name: "gemini-2.0-flash",
-          ollama_url: "http://localhost:11434",
-          cloud_api_key: "",
-          ocr_provider: "paddleocr",
-          default_mode: "quiz",
-          font_size: "medium",
-          theme: "dark",
-          setup_complete: false,
+
+    // 6. Persist both user message and AI message directly into local device IndexedDB
+    const savedUser = await localDB.addMessage({
+      chat_id: id,
+      sender: "user",
+      mode: result.user?.mode || mode,
+      content: result.user?.content || content,
+      image_path: localImagePath,
+      created_at: new Date().toISOString(),
+    });
+
+    const savedAi = await localDB.addMessage({
+      chat_id: id,
+      sender: "ai",
+      mode: result.ai?.mode || mode,
+      content: result.ai?.content || "",
+      created_at: new Date().toISOString(),
+    });
+
+    // Update chat title if it's the first message
+    const chat = await localDB.getChat(id);
+    if (chat && (chat.title === "New Chat" || !chat.title)) {
+      const newTitle = (content || "Image Question").slice(0, 40);
+      await localDB.updateChat(id, {
+        title: newTitle,
+        updated_at: new Date().toISOString(),
+      });
+    } else if (chat) {
+      await localDB.updateChat(id, { updated_at: new Date().toISOString() });
+    }
+
+    return {
+      user: savedUser,
+      ai: savedAi,
+    };
+  },
+
+  explain: async (mid, item = null, aiMessage = null) => {
+    let questionContent = "";
+    let answerContent = aiMessage?.content || "";
+    let contextText = "";
+
+    if (aiMessage?.chat_id) {
+      const msgs = await localDB.getMessages(aiMessage.chat_id);
+      const userMsg = [...msgs]
+        .reverse()
+        .find((m) => m.sender === "user" && m.id < mid);
+      if (userMsg) questionContent = userMsg.content;
+      contextText = await localDB.buildContextText(aiMessage.chat_id);
+    }
+
+    const res = await req(
+      `/api/messages/${mid}/explain`,
+      json("POST", {
+        item,
+        question_content: questionContent,
+        answer_content: answerContent,
+        context_text: contextText,
+      })
+    );
+
+    if (item === null && res?.explanation) {
+      await localDB.updateMessage(mid, {
+        has_explanation: true,
+        detailed_explanation: res.explanation,
+      });
+    }
+
+    return res;
+  },
+
+  // === IMPORT & EXPORT (.kod format directly on device) ===
+  exportChat: async (id) => {
+    const chat = await localDB.getChat(id);
+    const msgs = await localDB.getMessages(id);
+    return {
+      kodigo_version: "1.0",
+      format: "kod",
+      exported_at: new Date().toISOString(),
+      chat: {
+        title: chat?.title || "Chat",
+        is_pinned: chat?.is_pinned || false,
+        created_at: chat?.created_at,
+      },
+      messages: msgs.map((m) => ({
+        sender: m.sender,
+        mode: m.mode,
+        content: m.content,
+        image_path: m.image_path,
+        has_explanation: m.has_explanation,
+        detailed_explanation: m.detailed_explanation,
+        created_at: m.created_at,
+      })),
+    };
+  },
+
+  importChat: async (file) => {
+    const text = await file.text();
+    const data = JSON.parse(text);
+
+    const chatData = data.chat || {};
+    const rawTitle = chatData.title || file.name.replace(/\.[^/.]+$/, "") || "Imported Chat";
+    const newChat = await localDB.createChat(rawTitle);
+
+    if (chatData.is_pinned) {
+      await localDB.updateChat(newChat.id, { is_pinned: true });
+      newChat.is_pinned = true;
+    }
+
+    const messagesData = data.messages || [];
+    const savedMessages = [];
+    for (const msg of messagesData) {
+      const saved = await localDB.addMessage({
+        chat_id: newChat.id,
+        sender: msg.sender || "user",
+        mode: msg.mode || "quiz",
+        content: msg.content || "",
+        image_path: msg.image_path || null,
+        has_explanation: !!msg.has_explanation,
+        detailed_explanation: msg.detailed_explanation || null,
+        created_at: msg.created_at || new Date().toISOString(),
+      });
+      savedMessages.push(saved);
+    }
+
+    return { chat: newChat, messages: savedMessages };
+  },
+
+  // === REFERENCES (100% Device-Local in IndexedDB) ===
+  refs: async (scope) => {
+    return await localDB.getReferences(scope);
+  },
+
+  addRef: async (scope, file) => {
+    let extractedText = "";
+
+    // 1. Text/code files: read instantly on device
+    if (
+      file.type.startsWith("text/") ||
+      file.name.endsWith(".txt") ||
+      file.name.endsWith(".md") ||
+      file.name.endsWith(".csv") ||
+      file.name.endsWith(".json")
+    ) {
+      extractedText = await file.text();
+    } else if (file.type.startsWith("image/")) {
+      // 2. Image: run OCR on device first for 0ms lag & zero server dependency
+      try {
+        extractedText = await extractTextOnDevice(file);
+      } catch (e) {
+        console.warn("Client OCR fallback:", e);
+      }
+      // If client OCR yielded nothing or failed, request stateless text extraction
+      if (!extractedText.trim()) {
+        try {
+          const f = new FormData();
+          f.append("file", file);
+          const res = await req("/api/extract-text", {
+            method: "POST",
+            body: f,
+          });
+          extractedText = res?.extracted_text || "";
+        } catch (err) {
+          console.warn("Stateless OCR extraction fallback:", err);
         }
-      );
+      }
+    } else {
+      // 3. PDFs or other documents: send to stateless text extractor
+      try {
+        const f = new FormData();
+        f.append("file", file);
+        const res = await req("/api/extract-text", {
+          method: "POST",
+          body: f,
+        });
+        extractedText = res?.extracted_text || "";
+      } catch (err) {
+        console.warn("Text extraction error:", err);
+      }
     }
+
+    // Save directly into local device IndexedDB — NEVER lost when Render deploys!
+    return await localDB.addReference(scope, file.name, extractedText);
   },
-  saveSettings: async (s) => {
-    saveLocalSettings(s);
-    try {
-      await req("/api/settings", json("PUT", s));
-    } catch {}
-    return s;
+
+  toggleRef: async (scope, id, is_active) => {
+    return await localDB.toggleReference(id, is_active);
   },
-  models: (options) => {
+
+  delRef: async (scope, id) => {
+    return await localDB.deleteReference(id);
+  },
+
+  // === SETTINGS (100% Device-Local in localStorage — Never wiped by Render) ===
+  getSettingsSync: () => {
     const local = getLocalSettings();
+    if (local) return local;
+    return { ...DEFAULT_SETTINGS };
+  },
+
+  settings: async () => {
+    return api.getSettingsSync();
+  },
+
+  saveSettings: async (s) => {
+    const current = api.getSettingsSync();
+    const updated = { ...current, ...s, setup_complete: true };
+    saveLocalSettings(updated);
+    return updated;
+  },
+
+  models: (options) => {
+    const local = api.getSettingsSync();
     const payload = {
       provider: options.provider || local?.provider || "gemini",
       cloud_api_key: options.cloud_api_key || local?.cloud_api_key || "",
@@ -131,35 +380,4 @@ export const api = {
     };
     return req("/api/models", json("POST", payload));
   },
-  // refs: scope = "universal" or a chat id
-  refs: (scope) =>
-    req(
-      scope === "universal"
-        ? "/api/universal-references"
-        : `/api/chats/${scope}/references`
-    ),
-  addRef: (scope, file) => {
-    const f = new FormData();
-    f.append("file", file);
-    return req(
-      scope === "universal"
-        ? "/api/universal-references"
-        : `/api/chats/${scope}/references`,
-      { method: "POST", body: f }
-    );
-  },
-  toggleRef: (scope, id, is_active) =>
-    req(
-      scope === "universal"
-        ? `/api/universal-references/${id}`
-        : `/api/references/${id}`,
-      json("PATCH", { is_active })
-    ),
-  delRef: (scope, id) =>
-    req(
-      scope === "universal"
-        ? `/api/universal-references/${id}`
-        : `/api/references/${id}`,
-      { method: "DELETE" }
-    ),
 };

@@ -23,26 +23,57 @@ export default function SetupSettingsFields({
   const [models, setModels] = useState([]);
   const [modelsBusy, setModelsBusy] = useState(false);
   const [modelsError, setModelsError] = useState("");
+  const [modelsStatus, setModelsStatus] = useState({ verified: false, message: "" });
   const [useCustomModel, setUseCustomModel] = useState(false);
 
   const set = (key) => (event) =>
     setSettings((current) => ({ ...current, [key]: event.target.value }));
 
-  const loadModels = async () => {
+  const isModelDeprecated = (modelId) => {
+    if (!modelId) return false;
+    const m = modelId.toLowerCase();
+    return (
+      m === "gemini-pro" ||
+      m.includes("gemini-1.0") ||
+      m.includes("gemini-pro-vision")
+    );
+  };
+
+  const loadModels = async (keyOverride = null) => {
     setModelsBusy(true);
     setModelsError("");
     try {
+      const activeKey =
+        keyOverride !== null ? keyOverride : (settings.cloud_api_key || "");
       const result = await api.models({
         provider: settings.provider,
-        cloud_api_key: settings.cloud_api_key,
+        cloud_api_key: activeKey,
         ollama_url: settings.ollama_url,
       });
-      setModels(result.models);
-      if (result.models.includes(settings.model_name)) setUseCustomModel(false);
+
+      const rawList = result.models || [];
+      const normalized = rawList.map((m) => {
+        if (typeof m === "string") {
+          return { id: m, name: m, badge: "", description: "" };
+        }
+        return m;
+      });
+
+      setModels(normalized);
+      setModelsStatus({
+        verified: Boolean(result.verified),
+        message: result.message || "",
+      });
+
+      if (normalized.some((m) => m.id === settings.model_name)) {
+        setUseCustomModel(false);
+      }
     } catch (error) {
-      setModelsError(error.message);
+      setModelsError(error.message || "Failed to load models");
+      setModelsStatus({ verified: false, message: "" });
+    } finally {
+      setModelsBusy(false);
     }
-    setModelsBusy(false);
   };
 
   useEffect(() => {
@@ -66,7 +97,11 @@ export default function SetupSettingsFields({
     }));
     setModels([]);
     setUseCustomModel(false);
+    setModelsError("");
+    setModelsStatus({ verified: false, message: "" });
   };
+
+  const selectedModelMeta = models.find((m) => m.id === settings.model_name);
 
   return (
     <div className="space-y-1">
@@ -78,13 +113,117 @@ export default function SetupSettingsFields({
         <Field label="AI Provider">
           <select className={inputClass} value={settings.provider} onChange={changeProvider}>
             {connectionMode !== "online" && <option value="ollama">Ollama (Offline)</option>}
+            <option value="gemini">Gemini (Online — Generous Free Tier)</option>
             <option value="openai">OpenAI (Online)</option>
-            <option value="gemini">Gemini (Online)</option>
           </select>
         </Field>
       )}
 
-      <Field label="Model">
+      {settings.provider === "ollama" ? (
+        <Field label="Ollama Endpoint URL" hint="Address where Ollama is running on your machine.">
+          <div className="flex gap-2">
+            <input
+              className={`${inputClass} min-w-0 flex-1`}
+              value={settings.ollama_url}
+              onChange={set("ollama_url")}
+              placeholder="http://localhost:11434"
+            />
+            <button
+              type="button"
+              onClick={() => loadModels()}
+              disabled={modelsBusy}
+              className="shrink-0 rounded-lg bg-slate-700 hover:bg-slate-600 px-3 text-xs disabled:opacity-50 transition-colors"
+            >
+              {modelsBusy ? "Testing…" : "Test Connection"}
+            </button>
+          </div>
+        </Field>
+      ) : (
+        <Field
+          label={`${settings.provider === "gemini" ? "Google AI Studio" : "OpenAI"} API Key`}
+          hint="Your API key is saved strictly on this device's browser and is never stored in the shared database."
+        >
+          <div className="flex gap-2">
+            <input
+              className={`${inputClass} min-w-0 flex-1`}
+              type="password"
+              autoComplete="new-password"
+              value={settings.cloud_api_key || ""}
+              onChange={set("cloud_api_key")}
+              placeholder={
+                settings.cloud_api_key
+                  ? "•••••••• (Saved on this device)"
+                  : `Paste your ${settings.provider === "gemini" ? "Gemini (AIzaSy...)" : "OpenAI (sk-...)"} key`
+              }
+            />
+            <button
+              type="button"
+              onClick={() => loadModels(settings.cloud_api_key)}
+              disabled={modelsBusy}
+              className="shrink-0 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3 text-xs disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              {modelsBusy ? (
+                <>
+                  <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                  <span>Checking…</span>
+                </>
+              ) : (
+                <span>Check Models</span>
+              )}
+            </button>
+          </div>
+
+          {/* Direct link to get key */}
+          <div className="mt-2 flex items-center justify-between text-[11px]">
+            {settings.provider === "gemini" ? (
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 font-medium"
+              >
+                <span>Get free Gemini API key on Google AI Studio</span>
+                <span>↗</span>
+              </a>
+            ) : settings.provider === "openai" ? (
+              <a
+                href="https://platform.openai.com/api-keys"
+                target="_blank"
+                rel="noreferrer"
+                className="text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 font-medium"
+              >
+                <span>Get OpenAI API key on platform.openai.com</span>
+                <span>↗</span>
+              </a>
+            ) : null}
+          </div>
+
+          {/* Key status feedback */}
+          {modelsStatus.message && (
+            <div
+              className={`mt-2 p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                modelsStatus.verified
+                  ? "bg-emerald-950/40 border border-emerald-500/40 text-emerald-300"
+                  : "bg-slate-800/80 border border-slate-700 text-slate-300"
+              }`}
+            >
+              <span>{modelsStatus.verified ? "✓" : "ℹ"}</span>
+              <span className="flex-1">{modelsStatus.message}</span>
+            </div>
+          )}
+
+          {modelsError && (
+            <div className="mt-2 p-2.5 rounded-lg bg-red-950/50 border border-red-500/50 text-xs text-red-200">
+              <p className="font-semibold flex items-center gap-1.5">
+                <span>❌ Verification Failed:</span>
+              </p>
+              <p className="mt-0.5 text-red-300 leading-relaxed">{modelsError}</p>
+            </div>
+          )}
+        </Field>
+      )}
+
+      <Field label="Model Selection">
         <div className="flex gap-2">
           <select
             className={`${inputClass} min-w-0 flex-1`}
@@ -102,73 +241,66 @@ export default function SetupSettingsFields({
             }}
           >
             {settings.model_name &&
-              !models.includes(settings.model_name) &&
+              !models.some((m) => m.id === settings.model_name) &&
               !useCustomModel && (
                 <option value={settings.model_name}>
                   {settings.model_name} (current)
                 </option>
               )}
             {models.map((model) => (
-              <option key={model} value={model}>
-                {model}
+              <option key={model.id} value={model.id}>
+                {model.name} {model.badge ? `— [${model.badge}]` : ""}
               </option>
             ))}
-            <option value="__custom__">Enter model name…</option>
+            <option value="__custom__">Enter custom model ID…</option>
           </select>
           <button
             type="button"
-            onClick={loadModels}
+            onClick={() => loadModels()}
             disabled={modelsBusy}
             className="shrink-0 rounded-lg bg-slate-700 hover:bg-slate-600 px-3 text-xs disabled:opacity-50 transition-colors"
           >
             {modelsBusy ? "Loading…" : "Refresh"}
           </button>
         </div>
+
+        {/* Selected model description */}
+        {selectedModelMeta?.description && (
+          <div className="mt-1.5 flex items-start gap-1.5 text-[11px] text-slate-400">
+            <span className="text-indigo-400 font-medium shrink-0">About:</span>
+            <span>{selectedModelMeta.description}</span>
+          </div>
+        )}
+
+        {/* Deprecated model detection & 1-click upgrade */}
+        {isModelDeprecated(settings.model_name) && (
+          <div className="mt-2 p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 flex items-center justify-between gap-2">
+            <span>
+              ⚠️ <strong>{settings.model_name}</strong> has been phased out by Google. Upgrade to Gemini 2.0 Flash for active support.
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setSettings((s) => ({ ...s, model_name: "gemini-2.0-flash" }))
+              }
+              className="shrink-0 px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium transition-colors"
+            >
+              Switch to 2.0 Flash
+            </button>
+          </div>
+        )}
+
         {useCustomModel && (
           <input
             className={`${inputClass} mt-2`}
             value={settings.model_name}
             onChange={set("model_name")}
-            placeholder="Enter exact model ID"
+            placeholder="Enter exact model ID (e.g. gemini-2.0-flash)"
           />
-        )}
-        {modelsError ? (
-          <p className="mt-1 text-xs text-amber-300">
-            {modelsError}. Enter an API key if required, then refresh.
-          </p>
-        ) : (
-          <p className="mt-1 text-xs text-slate-500">
-            Choose an available model or enter a custom model ID.
-          </p>
         )}
       </Field>
 
-      {settings.provider === "ollama" ? (
-        <Field label="Ollama Endpoint URL">
-          <input
-            className={inputClass}
-            value={settings.ollama_url}
-            onChange={set("ollama_url")}
-            placeholder="http://localhost:11434"
-          />
-        </Field>
-      ) : (
-        <Field
-          label="Cloud API Key"
-          hint="Your API key is stored privately on this device's browser and is never shared with other users."
-        >
-          <input
-            className={inputClass}
-            type="password"
-            autoComplete="new-password"
-            value={settings.cloud_api_key || ""}
-            onChange={set("cloud_api_key")}
-            placeholder={settings.cloud_api_key ? "•••••••• (Saved on this device)" : "Paste your API key"}
-          />
-        </Field>
-      )}
-
-      <Field label="Image OCR">
+      <Field label="Image OCR Engine">
         <select
           className={inputClass}
           value={settings.ocr_provider || "paddleocr"}
@@ -180,12 +312,12 @@ export default function SetupSettingsFields({
         </select>
         {(!settings.ocr_provider || settings.ocr_provider === "paddleocr") && (
           <p className="mt-1 text-xs text-emerald-400">
-            ✓ Runs locally with high accuracy. No API key or internet required.
+            ✓ Fast on-device client compression & deep learning OCR. No OCR API key needed.
           </p>
         )}
         {settings.ocr_provider === "tesseract" && (
           <p className="mt-1 text-xs text-slate-500">
-            Runs locally; requires Tesseract OCR engine installed on your computer.
+            Runs locally; uses Tesseract engine.
           </p>
         )}
         {settings.ocr_provider === "online" && (
@@ -203,7 +335,7 @@ export default function SetupSettingsFields({
               onChange={set("ocr_api_key")}
             />
             <p className="mt-1 text-xs text-slate-500">
-              Images are sent to OCR.space online endpoint.
+              Images are processed via OCR.space online endpoint.
             </p>
           </div>
         )}

@@ -11,10 +11,17 @@ import { compressImage, extractTextOnDevice } from "./utils/imageOptimizer";
 
 export default function App() {
   const [chats, setChats] = useState([]);
-  const [activeId, setActiveId] = useState(null);
+  const [activeId, setActiveId] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kodigo_active_chat_id");
+      return saved ? Number(saved) || saved : null;
+    } catch {
+      return null;
+    }
+  });
   const [messages, setMessages] = useState([]);
-  const [settings, setSettings] = useState(null);
-  const [mode, setMode] = useState("quiz");
+  const [settings, setSettings] = useState(() => api.getSettingsSync());
+  const [mode, setMode] = useState(() => settings.default_mode || "quiz");
   const [sidebar, setSidebar] = useState(window.innerWidth >= 768);
   const [modal, setModal] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -27,32 +34,12 @@ export default function App() {
   const activeChatIdRef = useRef(activeId);
   activeChatIdRef.current = activeId;
 
-  // Fetch list of chats
-  const refreshChats = useCallback(async () => {
-    try {
-      const data = await api.chats();
-      setChats(data);
-    } catch (err) {
-      console.error("Failed to load chats:", err);
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const currentSettings = await api.settings();
-        setSettings(currentSettings);
-        setMode(currentSettings.default_mode || "quiz");
-        await refreshChats();
-      } catch (requestError) {
-        setError("Cannot reach backend: " + requestError.message);
-      }
-    })();
-  }, [refreshChats]);
-
   // Instant zero-delay chat selection with cache-first strategy
   const select = useCallback((id) => {
     if (!id) return;
+    try {
+      localStorage.setItem("kodigo_active_chat_id", String(id));
+    } catch {}
     if (window.innerWidth < 768) setSidebar(false);
 
     // If already active and has loaded messages, do nothing
@@ -64,18 +51,18 @@ export default function App() {
     setActiveId(id);
     setError("");
 
-    // Instant cache hit: render cached messages immediately without waiting for network
+    // Instant cache hit: render cached messages immediately without waiting
     if (messagesCacheRef.current.has(id)) {
       setMessages(messagesCacheRef.current.get(id));
       setLoadingChat(false);
     } else {
-      // Clear previous messages immediately and show fast loader
       setMessages([]);
       setLoadingChat(true);
     }
 
-    // Fetch fresh messages in background / on-demand
-    api.messages(id)
+    // Fetch fresh messages from local device IndexedDB (0ms)
+    api
+      .messages(id)
       .then((chatMessages) => {
         messagesCacheRef.current.set(id, chatMessages);
         if (activeChatIdRef.current === id) {
@@ -91,16 +78,49 @@ export default function App() {
       });
   }, []);
 
+  // Fetch list of chats from local device IndexedDB
+  const refreshChats = useCallback(
+    async (preferredId = null) => {
+      try {
+        const data = await api.chats();
+        setChats(data);
+
+        // Auto-select active chat or restore last selected chat
+        if (data.length > 0) {
+          const savedId = localStorage.getItem("kodigo_active_chat_id");
+          const targetId = preferredId || activeChatIdRef.current || savedId;
+          const found = data.find((c) => String(c.id) === String(targetId));
+          if (found) {
+            select(found.id);
+          } else if (!activeChatIdRef.current) {
+            select(data[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load local chats from IndexedDB:", err);
+      }
+    },
+    [select]
+  );
+
+  useEffect(() => {
+    // 1. Immediately load local chats from device without waiting for server
+    refreshChats();
+  }, [refreshChats]);
+
   const newChat = useCallback(async () => {
     try {
       const chat = await api.newChat();
       activeChatIdRef.current = chat.id;
       setActiveId(chat.id);
+      try {
+        localStorage.setItem("kodigo_active_chat_id", String(chat.id));
+      } catch {}
       setMessages([]);
       messagesCacheRef.current.set(chat.id, []);
       setError("");
       if (window.innerWidth < 768) setSidebar(false);
-      await refreshChats();
+      await refreshChats(chat.id);
       return chat.id;
     } catch (requestError) {
       setError(requestError.message);
@@ -117,6 +137,9 @@ export default function App() {
           activeChatIdRef.current = null;
           setActiveId(null);
           setMessages([]);
+          try {
+            localStorage.removeItem("kodigo_active_chat_id");
+          } catch {}
         }
         await refreshChats();
       } catch (requestError) {
@@ -130,162 +153,156 @@ export default function App() {
   const pinChat = useCallback(
     async (id, pinned) => {
       try {
-        // Optimistic UI update for instant response
-        setChats((prev) =>
-          prev.map((c) => (c.id === id ? { ...c, is_pinned: pinned } : c))
-        );
         await api.pinChat(id, pinned);
-        await refreshChats();
+        setChats((prev) => {
+          const updated = prev.map((c) =>
+            c.id === id ? { ...c, is_pinned: pinned } : c
+          );
+          return [...updated].sort((a, b) => {
+            if (!!b.is_pinned !== !!a.is_pinned) {
+              return b.is_pinned ? 1 : -1;
+            }
+            return new Date(b.updated_at) - new Date(a.updated_at);
+          });
+        });
       } catch (requestError) {
         setError(requestError.message);
-        await refreshChats();
       }
     },
-    [refreshChats]
+    []
   );
 
   // Chat renaming handler
   const renameChat = useCallback(
     async (id, newTitle) => {
       try {
+        await api.renameChat(id, newTitle);
         setChats((prev) =>
           prev.map((c) => (c.id === id ? { ...c, title: newTitle } : c))
         );
-        await api.renameChat(id, newTitle);
-        await refreshChats();
-      } catch (err) {
-        setError("Rename failed: " + err.message);
-        await refreshChats();
+      } catch (requestError) {
+        setError(requestError.message);
       }
     },
-    [refreshChats]
+    []
   );
 
-  // Chat export handler (.kod file)
-  const exportChat = useCallback(async (id, title) => {
+  // Chat export handler (.kod custom file format)
+  const exportChat = useCallback(async (id) => {
     try {
       const data = await api.exportChat(id);
-      const jsonStr = JSON.stringify(data, null, 2);
-      const blob = new Blob([jsonStr], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const cleanName = (title || "chat")
-        .replace(/[^\w\s-]/gi, "")
-        .replace(/\s+/g, "_")
-        .slice(0, 50);
-      a.download = `${cleanName || "chat"}.kod`;
+      const cleanTitle = (data.chat?.title || "chat")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-");
+      a.download = `kodigo-${cleanTitle}-${Date.now()}.kod`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err) {
-      setError("Export failed: " + err.message);
+    } catch (requestError) {
+      alert("Failed to export chat: " + requestError.message);
     }
   }, []);
 
-  // Chat import handler (.kod file)
+  // Chat import handler (.kod custom file format)
   const importChat = useCallback(
     async (file) => {
       try {
         const result = await api.importChat(file);
-        if (result?.chat) {
-          await refreshChats();
-          messagesCacheRef.current.set(result.chat.id, result.messages || []);
+        await refreshChats();
+        if (result?.chat?.id) {
           select(result.chat.id);
         }
-      } catch (err) {
-        setError("Import failed: " + err.message);
+      } catch (requestError) {
+        alert("Failed to import chat: " + requestError.message);
       }
     },
     [refreshChats, select]
   );
 
-  // Optimistic message sending with on-device image processing
   const send = useCallback(
-    async (text, file) => {
+    async (content, file) => {
+      let chatId = activeChatIdRef.current;
+      if (!chatId) {
+        chatId = await newChat();
+        if (!chatId) return;
+      }
+      setLoading(true);
       setError("");
-      const tempId = `temp-${Date.now()}`;
-      const previewUrl =
-        file && file.type?.startsWith("image/")
-          ? URL.createObjectURL(file)
-          : null;
 
-      // Optimistic message: displayed immediately in 0ms!
-      const optimisticUserMessage = {
-        id: tempId,
-        chat_id: activeChatIdRef.current,
+      let clientOcrText = "";
+      let processedFile = file;
+
+      // Optimistic user message rendering so it shows instantly before thinking
+      const tempUserMsgId = Date.now();
+      const localImagePreview = file ? URL.createObjectURL(file) : null;
+      const optimisticUserMsg = {
+        id: tempUserMsgId,
         sender: "user",
         mode,
-        content: text || (file ? "Analyzing image…" : ""),
-        image_path: previewUrl,
+        content: content || (file ? "Analyzing image question..." : ""),
+        image_path: localImagePreview,
         created_at: new Date().toISOString(),
       };
 
-      setMessages((previous) => [...previous, optimisticUserMessage]);
-      setLoading(true);
-      setLoadingStatus(file ? "Preparing image…" : "Thinking…");
+      setMessages((prev) => [...prev, optimisticUserMsg]);
 
-      try {
-        const id = activeChatIdRef.current ?? (await newChat());
-        if (!id) throw new Error("Could not initialize chat");
-
-        let processedFile = file;
-        let clientOcrText = "";
-
-        // Client-side image optimization and OCR (runs on device, saves Render RAM/CPU)
-        if (file && file.type?.startsWith("image/")) {
+      // Step 1: On-Device Image Compression
+      if (file && file.type.startsWith("image/")) {
+        try {
           setLoadingStatus("Optimizing image on device…");
           processedFile = await compressImage(file, 1400, 0.82);
-
-          setLoadingStatus("Scanning image text on device…");
-          clientOcrText = await extractTextOnDevice(processedFile, (status) => {
-            setLoadingStatus(status);
-          });
-
-          // If OCR extracted text, show it in the message details
-          if (clientOcrText && !text.trim()) {
-            setMessages((previous) =>
-              previous.map((m) =>
-                m.id === tempId ? { ...m, content: clientOcrText } : m
-              )
-            );
-          }
+        } catch (compressionError) {
+          console.warn("Image compression skipped:", compressionError);
         }
 
-        setLoadingStatus("Thinking…");
+        // Step 2: On-Device Fast OCR
+        try {
+          setLoadingStatus("Scanning text locally…");
+          clientOcrText = await extractTextOnDevice(processedFile, (status) =>
+            setLoadingStatus(status)
+          );
+        } catch (ocrError) {
+          console.warn("Client OCR fallback:", ocrError);
+        }
+      }
+
+      setLoadingStatus("Thinking…");
+
+      try {
         const result = await api.send(
-          id,
-          text,
+          chatId,
+          content,
           mode,
           processedFile,
           clientOcrText
         );
 
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-
-        setMessages((previous) => {
-          const updated = [
-            ...previous.filter((m) => m.id !== tempId),
-            result.user,
-            result.ai,
-          ];
-          messagesCacheRef.current.set(id, updated);
-          return updated;
+        // Replace optimistic message and append real AI response
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== tempUserMsgId);
+          const next = [...filtered, result.user, result.ai];
+          messagesCacheRef.current.set(chatId, next);
+          return next;
         });
-        await refreshChats();
+
+        await refreshChats(chatId);
       } catch (requestError) {
         setError(requestError.message);
-        setMessages((previous) =>
-          previous.map((m) =>
-            m.id === tempId
-              ? { ...m, content: (m.content || "") + "\n*(Failed to send)*" }
-              : m
-          )
-        );
+        // Remove optimistic message on failure
+        setMessages((prev) => prev.filter((m) => m.id !== tempUserMsgId));
       } finally {
         setLoading(false);
         setLoadingStatus("");
+        if (localImagePreview) {
+          URL.revokeObjectURL(localImagePreview);
+        }
       }
     },
     [mode, newChat, refreshChats]
@@ -296,7 +313,6 @@ export default function App() {
       const saved = await api.saveSettings(value);
       setSettings(saved);
       if (saved.default_mode) setMode(saved.default_mode);
-      setModal(null);
     } catch (requestError) {
       alert(requestError.message);
     }
@@ -305,7 +321,7 @@ export default function App() {
   const completeSetup = useCallback(
     async (value) => {
       try {
-        const saved = await api.saveSettings(value);
+        const saved = await api.saveSettings({ ...value, setup_complete: true });
         setSettings(saved);
         if (saved.default_mode) setMode(saved.default_mode);
         await refreshChats();
@@ -341,14 +357,6 @@ export default function App() {
     if (settings?.font_size === "xlarge") return "text-lg";
     return "text-sm";
   }, [settings?.font_size]);
-
-  if (!settings) {
-    return (
-      <div className="h-full flex items-center justify-center bg-slate-950 text-slate-300">
-        {error || "Connecting to KODIGO…"}
-      </div>
-    );
-  }
 
   return (
     <div className={`h-full flex flex-col ${themeClass} ${fontSizeClass}`}>

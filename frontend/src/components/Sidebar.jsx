@@ -103,6 +103,11 @@ export default function Sidebar({
 
         {/* Top Action Bar */}
         <div className={`p-2.5 flex flex-col gap-2 ${open ? "" : "items-center"}`}>
+          {!open && (
+            <div className="hidden md:flex items-center justify-center py-1">
+              <img src="/kodigo.png" alt="KODIGO" className="w-8 h-8 rounded-xl object-contain shadow-sm ring-1 ring-slate-800" />
+            </div>
+          )}
           <div className="flex items-center gap-1.5 w-full">
             {/* New Chat Button */}
             <button
