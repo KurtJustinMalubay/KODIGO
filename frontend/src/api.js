@@ -34,10 +34,12 @@ export const api = {
   delChat: (id) => req(`/api/chats/${id}`, { method: "DELETE" }),
   batchChats: (chat_ids) => req("/api/chats/batch", json("POST", { chat_ids })),
   messages: (id, limit = 200, offset = 0) => req(`/api/chats/${id}/messages?limit=${limit}&offset=${offset}`),
-  send: (id, content, mode, file) => {
+  send: (id, content, mode, file, clientOcrText = "") => {
     const f = new FormData();
-    f.append("content", content); f.append("mode", mode);
+    f.append("content", content);
+    f.append("mode", mode);
     if (file) f.append("image", file);
+    if (clientOcrText) f.append("client_ocr_text", clientOcrText);
     return req(`/api/chats/${id}/messages`, { method: "POST", body: f });
   },
   explain: (mid, item = null) => req(`/api/messages/${mid}/explain`, json("POST", { item })),

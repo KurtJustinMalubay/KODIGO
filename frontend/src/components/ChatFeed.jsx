@@ -61,11 +61,11 @@ function UserMessage({ message }) {
   );
 }
 
-export default function ChatFeed({ messages, loading, loadingChat, error }) {
+export default function ChatFeed({ messages, loading, loadingChat, loadingStatus, error }) {
   const end = useRef(null);
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, loadingStatus]);
 
   if (loadingChat) {
     return (
@@ -97,7 +97,9 @@ export default function ChatFeed({ messages, loading, loadingChat, error }) {
         {loading && (
           <div className="flex items-center gap-2 text-slate-400 text-sm">
             <Loader2 size={16} className="animate-spin text-indigo-400" />
-            <span>Thinking…</span>
+            <span className="font-medium text-slate-300">
+              {loadingStatus || "Thinking…"}
+            </span>
           </div>
         )}
         {error && (

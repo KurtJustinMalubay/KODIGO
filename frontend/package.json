@@ -1,12 +1,27 @@
 {
-  "name": "kodigo-frontend", "private": true, "version": "1.0.0", "type": "module",
-  "scripts": { "dev": "vite", "build": "vite build" },
+  "name": "kodigo-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
   "dependencies": {
-    "katex": "^0.16.11", "lucide-react": "^0.451.0", "react": "^18.3.1", "react-dom": "^18.3.1",
-    "react-markdown": "^9.0.1", "rehype-katex": "^7.0.1", "remark-math": "^6.0.0"
+    "katex": "^0.16.11",
+    "lucide-react": "^0.451.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1", "autoprefixer": "^10.4.20", "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.13", "vite": "^5.4.8"
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "vite": "^5.4.8"
   }
 }

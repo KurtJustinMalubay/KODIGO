@@ -176,6 +176,7 @@ async def send_message(
     content: str = Form(""),
     mode: str = Form("quiz"),
     image: UploadFile = File(None),
+    client_ocr_text: str = Form(""),
     db: Session = Depends(get_db),
 ):
     chat = db.get(Chat, chat_id)
@@ -187,10 +188,13 @@ async def send_message(
     if image:
         path = save_upload(image)
         image_url = "/" + path.replace("\\", "/")
-        try:
-            ocr_text = await extract_text(path, settings)
-        except Exception as error:
-            raise HTTPException(502, f"OCR provider error: {error}") from error
+        if client_ocr_text and client_ocr_text.strip():
+            ocr_text = client_ocr_text.strip()
+        else:
+            try:
+                ocr_text = await extract_text(path, settings)
+            except Exception as error:
+                raise HTTPException(502, f"OCR provider error: {error}") from error
 
     text = (content + "\n" + ocr_text).strip()
     if not text:

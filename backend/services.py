@@ -37,12 +37,28 @@ def _extract_paddleocr(path: str) -> str:
     return "\n".join(lines).strip()
 
 
+def _optimize_image_size(path: str, max_dim: int = 1400):
+    """Ensure images are resized to efficient processing dimensions for OCR engines."""
+    from PIL import Image
+    try:
+        with Image.open(path) as img:
+            w, h = img.size
+            if max(w, h) > max_dim:
+                scale = max_dim / float(max(w, h))
+                new_size = (int(w * scale), int(h * scale))
+                resized = img.resize(new_size, Image.Resampling.LANCZOS)
+                resized.save(path)
+    except Exception:
+        pass
+
+
 def _extract_text_local(path: str, provider: str = "paddleocr") -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext == ".pdf":
         from pypdf import PdfReader
         return "\n".join((p.extract_text() or "") for p in PdfReader(path).pages)
     if ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"):
+        _optimize_image_size(path)
         if provider == "paddleocr":
             try:
                 return _extract_paddleocr(path)

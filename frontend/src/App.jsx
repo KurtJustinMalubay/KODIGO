@@ -7,6 +7,7 @@ import RefsModal from "./components/RefsModal";
 import SettingsModal from "./components/SettingsModal";
 import SetupWizard from "./components/SetupWizard";
 import Sidebar from "./components/Sidebar";
+import { compressImage, extractTextOnDevice } from "./utils/imageOptimizer";
 
 export default function App() {
   const [chats, setChats] = useState([]);
@@ -18,6 +19,7 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState("");
   const [error, setError] = useState("");
 
   // In-memory cache for loaded chat messages to provide instant 0ms switching
@@ -199,24 +201,91 @@ export default function App() {
     [refreshChats, select]
   );
 
+  // Optimistic message sending with on-device image processing
   const send = useCallback(
     async (text, file) => {
       setError("");
+      const tempId = `temp-${Date.now()}`;
+      const previewUrl =
+        file && file.type?.startsWith("image/")
+          ? URL.createObjectURL(file)
+          : null;
+
+      // Optimistic message: displayed immediately in 0ms!
+      const optimisticUserMessage = {
+        id: tempId,
+        chat_id: activeChatIdRef.current,
+        sender: "user",
+        mode,
+        content: text || (file ? "Analyzing image…" : ""),
+        image_path: previewUrl,
+        created_at: new Date().toISOString(),
+      };
+
+      setMessages((previous) => [...previous, optimisticUserMessage]);
       setLoading(true);
+      setLoadingStatus(file ? "Preparing image…" : "Thinking…");
+
       try {
         const id = activeChatIdRef.current ?? (await newChat());
-        if (!id) return;
-        const result = await api.send(id, text, mode, file);
+        if (!id) throw new Error("Could not initialize chat");
+
+        let processedFile = file;
+        let clientOcrText = "";
+
+        // Client-side image optimization and OCR (runs on device, saves Render RAM/CPU)
+        if (file && file.type?.startsWith("image/")) {
+          setLoadingStatus("Optimizing image on device…");
+          processedFile = await compressImage(file, 1400, 0.82);
+
+          setLoadingStatus("Scanning image text on device…");
+          clientOcrText = await extractTextOnDevice(processedFile, (status) => {
+            setLoadingStatus(status);
+          });
+
+          // If OCR extracted text, show it in the message details
+          if (clientOcrText && !text.trim()) {
+            setMessages((previous) =>
+              previous.map((m) =>
+                m.id === tempId ? { ...m, content: clientOcrText } : m
+              )
+            );
+          }
+        }
+
+        setLoadingStatus("Thinking…");
+        const result = await api.send(
+          id,
+          text,
+          mode,
+          processedFile,
+          clientOcrText
+        );
+
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+
         setMessages((previous) => {
-          const updated = [...previous, result.user, result.ai];
+          const updated = [
+            ...previous.filter((m) => m.id !== tempId),
+            result.user,
+            result.ai,
+          ];
           messagesCacheRef.current.set(id, updated);
           return updated;
         });
         await refreshChats();
       } catch (requestError) {
         setError(requestError.message);
+        setMessages((previous) =>
+          previous.map((m) =>
+            m.id === tempId
+              ? { ...m, content: (m.content || "") + "\n*(Failed to send)*" }
+              : m
+          )
+        );
       } finally {
         setLoading(false);
+        setLoadingStatus("");
       }
     },
     [mode, newChat, refreshChats]
@@ -307,6 +376,7 @@ export default function App() {
             messages={messages}
             loading={loading}
             loadingChat={loadingChat}
+            loadingStatus={loadingStatus}
             error={error}
           />
           <InputBar
