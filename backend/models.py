@@ -63,7 +63,7 @@ class Setting(Base):
     cloud_api_key = Column(String, nullable=True)
     default_mode = Column(String, default="quiz")
     setup_complete = Column(Boolean, default=False, nullable=False)
-    ocr_provider = Column(String, default="online")  # online | tesseract
+    ocr_provider = Column(String, default="paddleocr")  # paddleocr | tesseract | online
     ocr_api_key = Column(String, nullable=True)
     font_size = Column(String, default="medium")
     theme = Column(String, default="dark")

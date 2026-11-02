@@ -1,21 +1,25 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
-from core import build_context, get_settings, save_upload, serialize
+from core import build_context, get_settings, resolve_effective_settings, save_upload, serialize
 from models import Chat, Message, get_db
 from services import generate, extract_text
 
 router = APIRouter()
 
 QUIZ_SYS = (
-    "You are KODIGO, a quiz solver. Give ONLY the final answers as a numbered list, "
-    "one per line, like '1. A' or '2. 3.14'. No explanations."
+    "You are KODIGO, an AI quiz solver application created and developed by Kurt Justin J. Malubay (also known by his stage name SASHIMI24). "
+    "If the user asks who created, made, or developed you or this app, you must always state that you were created by Kurt Justin J. Malubay (SASHIMI24). "
+    "Never say you were created by Google, OpenAI, or any other company. "
+    "Give ONLY the final answers as a numbered list, one per line, like '1. A' or '2. 3.14'. No explanations."
 )
 CHAT_SYS = (
-    "You are KODIGO, a clear, friendly tutor. Explain step by step. "
-    "Use LaTeX with $...$ for inline and $$...$$ for block math."
+    "You are KODIGO, a clear, friendly AI tutor application created and developed by Kurt Justin J. Malubay (also known by his stage name SASHIMI24). "
+    "If the user asks who made you, who created you, who your developer is, or who built this app, you must always state clearly that you were created and developed by Kurt Justin J. Malubay (SASHIMI24). "
+    "Never say you were created by Google, OpenAI, or anyone else; you are KODIGO, created by Kurt Justin J. Malubay (SASHIMI24). "
+    "Explain step by step. Use LaTeX with $...$ for inline and $$...$$ for block math."
 )
 
 
@@ -62,6 +66,86 @@ def delete_chat(chat_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@router.get("/api/chats/{chat_id}/export")
+def export_chat(chat_id: int, db: Session = Depends(get_db)):
+    chat = db.get(Chat, chat_id)
+    if not chat:
+        raise HTTPException(404, "Chat not found")
+    messages = (
+        db.query(Message)
+        .filter_by(chat_id=chat_id)
+        .order_by(Message.id.asc())
+        .all()
+    )
+    return {
+        "kodigo_version": "1.0",
+        "format": "kod",
+        "exported_at": datetime.utcnow().isoformat(),
+        "chat": {
+            "title": chat.title,
+            "is_pinned": chat.is_pinned,
+            "created_at": chat.created_at.isoformat() if chat.created_at else None,
+        },
+        "messages": [
+            {
+                "sender": m.sender,
+                "mode": m.mode,
+                "content": m.content,
+                "image_path": m.image_path,
+                "has_explanation": m.has_explanation,
+                "detailed_explanation": m.detailed_explanation,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in messages
+        ],
+    }
+
+
+@router.post("/api/chats/import")
+async def import_chat(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    import json
+    try:
+        content = await file.read()
+        data = json.loads(content.decode("utf-8"))
+    except Exception as e:
+        raise HTTPException(400, f"Invalid .kod file format: {e}")
+
+    chat_data = data.get("chat", {})
+    raw_title = chat_data.get("title") or file.filename or "Imported Chat"
+    clean_title = raw_title.replace(".kod", "").replace(".json", "").strip() or "Imported Chat"
+
+    new_chat_obj = Chat(
+        title=clean_title[:255],
+        is_pinned=bool(chat_data.get("is_pinned", False)),
+    )
+    db.add(new_chat_obj)
+    db.commit()
+    db.refresh(new_chat_obj)
+
+    messages_data = data.get("messages", [])
+    msg_objects = []
+    for msg in messages_data:
+        msg_obj = Message(
+            chat_id=new_chat_obj.id,
+            sender=msg.get("sender", "user"),
+            mode=msg.get("mode", "quiz"),
+            content=msg.get("content", ""),
+            image_path=msg.get("image_path"),
+            has_explanation=bool(msg.get("has_explanation", False)),
+            detailed_explanation=msg.get("detailed_explanation"),
+        )
+        msg_objects.append(msg_obj)
+
+    if msg_objects:
+        db.add_all(msg_objects)
+        db.commit()
+
+    return {
+        "chat": serialize(new_chat_obj),
+        "messages": [serialize(m) for m in msg_objects],
+    }
+
+
 @router.post("/api/chats/batch")
 def batch_chats(chat_ids: list[int] = Body(..., embed=True), db: Session = Depends(get_db)):
     """Efficient batch processing endpoint to fetch multiple chats in a single DB query."""
@@ -93,9 +177,11 @@ def get_messages(
 @router.post("/api/chats/{chat_id}/messages")
 async def send_message(
     chat_id: int,
+    request: Request,
     content: str = Form(""),
     mode: str = Form("quiz"),
     image: UploadFile = File(None),
+    client_ocr_text: str = Form(""),
     db: Session = Depends(get_db),
 ):
     chat = db.get(Chat, chat_id)
@@ -103,14 +189,18 @@ async def send_message(
         raise HTTPException(404, "Chat not found")
 
     image_url, ocr_text = None, ""
-    settings = get_settings(db)
+    # Per-request settings: uses device's private credentials from headers
+    settings = resolve_effective_settings(db, request)
     if image:
         path = save_upload(image)
         image_url = "/" + path.replace("\\", "/")
-        try:
-            ocr_text = await extract_text(path, settings)
-        except Exception as error:
-            raise HTTPException(502, f"OCR provider error: {error}") from error
+        if client_ocr_text and client_ocr_text.strip():
+            ocr_text = client_ocr_text.strip()
+        else:
+            try:
+                ocr_text = await extract_text(path, settings)
+            except Exception as error:
+                raise HTTPException(502, f"OCR provider error: {error}") from error
 
     text = (content + "\n" + ocr_text).strip()
     if not text:
@@ -169,6 +259,7 @@ async def send_message(
 @router.post("/api/messages/{message_id}/explain")
 async def explain_message(
     message_id: int,
+    request: Request,
     item: int | None = Body(None, embed=True),
     db: Session = Depends(get_db),
 ):
@@ -200,8 +291,9 @@ async def explain_message(
     if context:
         system += "\n\nReference material:\n" + context
     try:
+        settings = resolve_effective_settings(db, request)
         text = await generate(
-            get_settings(db), system, [{"role": "user", "content": prompt}]
+            settings, system, [{"role": "user", "content": prompt}]
         )
     except Exception as error:
         raise HTTPException(502, f"AI provider error: {error}") from error

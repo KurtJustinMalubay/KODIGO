@@ -71,11 +71,10 @@ export default function GeneralSettingsFields({ settings, setSettings }) {
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 mt-4">
         <h4 className="text-xs font-semibold text-slate-300 mb-1">
-          💡 Extensible Configuration
+          KODIGO
         </h4>
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          Additional categories and preferences can easily be registered here without
-          affecting the setup wizard or AI pipeline.
+        <p className="text-[11px] text-slate-400 leading-relaxed">
+          Created and developed by <span className="font-semibold text-indigo-400">Kurt Justin J. Malubay</span> (SASHIMI24).
         </p>
       </div>
     </div>

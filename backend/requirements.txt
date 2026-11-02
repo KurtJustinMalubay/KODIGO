@@ -5,5 +5,7 @@ alembic
 python-multipart
 httpx
 pypdf
+paddleocr
+paddlepaddle
 pytesseract
 pillow

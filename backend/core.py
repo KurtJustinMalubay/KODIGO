@@ -27,6 +27,60 @@ def get_settings(db: Session) -> Setting:
     return settings
 
 
+class RequestSettings:
+    """Per-request settings object populated from device headers with database fallbacks."""
+    def __init__(self, provider, model_name, cloud_api_key, ollama_url, ocr_provider):
+        self.provider = provider
+        self.model_name = model_name
+        self.cloud_api_key = cloud_api_key
+        self.ollama_url = ollama_url
+        self.ocr_provider = ocr_provider
+
+
+def resolve_effective_settings(db: Session, request=None) -> RequestSettings:
+    """Resolves settings isolated per client device from request headers."""
+    db_settings = get_settings(db)
+    provider = db_settings.provider or "gemini"
+    model_name = db_settings.model_name or "gemini-2.0-flash"
+    cloud_api_key = db_settings.cloud_api_key
+    ollama_url = db_settings.ollama_url or "http://localhost:11434"
+    ocr_provider = db_settings.ocr_provider or "paddleocr"
+
+    if request is not None and hasattr(request, "headers"):
+        headers = request.headers
+        client_provider = headers.get("x-ai-provider")
+        client_model = headers.get("x-model-name")
+        client_key = headers.get("x-cloud-api-key")
+        client_ollama = headers.get("x-ollama-url")
+        client_ocr = headers.get("x-ocr-provider")
+
+        if client_provider:
+            provider = client_provider
+        if client_model:
+            model_name = client_model
+        if client_key:
+            cloud_api_key = client_key
+        if client_ollama:
+            ollama_url = client_ollama
+        if client_ocr:
+            ocr_provider = client_ocr
+
+    # Optional server-level environment variable fallbacks
+    if not cloud_api_key:
+        if provider == "openai":
+            cloud_api_key = os.environ.get("OPENAI_API_KEY")
+        elif provider == "gemini":
+            cloud_api_key = os.environ.get("GEMINI_API_KEY")
+
+    return RequestSettings(
+        provider=provider,
+        model_name=model_name,
+        cloud_api_key=cloud_api_key,
+        ollama_url=ollama_url,
+        ocr_provider=ocr_provider,
+    )
+
+
 def save_upload(upload) -> str:
     path = os.path.join(
         UPLOADS, uuid.uuid4().hex + os.path.splitext(upload.filename or "")[1]

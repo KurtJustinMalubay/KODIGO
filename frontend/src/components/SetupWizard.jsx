@@ -10,7 +10,7 @@ export default function SetupWizard({ savedSettings, onComplete }) {
       : savedSettings.model_name || "gpt-4o-mini",
     ollama_url: savedSettings.ollama_url || "http://localhost:11434",
     cloud_api_key: "",
-    ocr_provider: "online",
+    ocr_provider: savedSettings.ocr_provider || "paddleocr",
     ocr_api_key: "",
     default_mode: savedSettings.default_mode || "quiz",
     has_key: savedSettings.has_key,
