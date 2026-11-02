@@ -7,7 +7,7 @@ from services import list_models
 
 router = APIRouter()
 AI_PROVIDERS = {"ollama", "openai", "gemini"}
-OCR_PROVIDERS = {"online", "tesseract"}
+OCR_PROVIDERS = {"paddleocr", "tesseract", "online"}
 
 
 def public_settings(settings):

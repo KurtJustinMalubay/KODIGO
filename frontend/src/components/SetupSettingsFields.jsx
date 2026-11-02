@@ -170,12 +170,23 @@ export default function SetupSettingsFields({
       <Field label="Image OCR">
         <select
           className={inputClass}
-          value={settings.ocr_provider}
+          value={settings.ocr_provider || "paddleocr"}
           onChange={set("ocr_provider")}
         >
+          <option value="paddleocr">PaddleOCR (Offline Deep Learning — Recommended)</option>
+          <option value="tesseract">Tesseract (Offline)</option>
           <option value="online">Online OCR (OCR.space)</option>
-          <option value="tesseract">Offline Tesseract</option>
         </select>
+        {(!settings.ocr_provider || settings.ocr_provider === "paddleocr") && (
+          <p className="mt-1 text-xs text-emerald-400">
+            ✓ Runs locally with high accuracy. No API key or internet required.
+          </p>
+        )}
+        {settings.ocr_provider === "tesseract" && (
+          <p className="mt-1 text-xs text-slate-500">
+            Runs locally; requires Tesseract OCR engine installed on your computer.
+          </p>
+        )}
         {settings.ocr_provider === "online" && (
           <div className="mt-2">
             <input
@@ -191,14 +202,9 @@ export default function SetupSettingsFields({
               onChange={set("ocr_api_key")}
             />
             <p className="mt-1 text-xs text-slate-500">
-              Images are sent to OCR.space. Works without setup using the shared demo key.
+              Images are sent to OCR.space online endpoint.
             </p>
           </div>
-        )}
-        {settings.ocr_provider === "tesseract" && (
-          <p className="mt-1 text-xs text-slate-500">
-            Runs locally; Tesseract OCR must be installed on your computer.
-          </p>
         )}
       </Field>
 

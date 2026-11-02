@@ -14,6 +14,12 @@ export const api = {
   newChat: () => req("/api/chats", { method: "POST" }),
   pinChat: (id, is_pinned) => req(`/api/chats/${id}`, json("PATCH", { is_pinned })),
   renameChat: (id, title) => req(`/api/chats/${id}`, json("PATCH", { title })),
+  exportChat: (id) => req(`/api/chats/${id}/export`),
+  importChat: (file) => {
+    const f = new FormData();
+    f.append("file", file);
+    return req("/api/chats/import", { method: "POST", body: f });
+  },
   delChat: (id) => req(`/api/chats/${id}`, { method: "DELETE" }),
   batchChats: (chat_ids) => req("/api/chats/batch", json("POST", { chat_ids })),
   messages: (id, limit = 200, offset = 0) => req(`/api/chats/${id}/messages?limit=${limit}&offset=${offset}`),

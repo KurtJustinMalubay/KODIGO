@@ -62,6 +62,86 @@ def delete_chat(chat_id: int, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@router.get("/api/chats/{chat_id}/export")
+def export_chat(chat_id: int, db: Session = Depends(get_db)):
+    chat = db.get(Chat, chat_id)
+    if not chat:
+        raise HTTPException(404, "Chat not found")
+    messages = (
+        db.query(Message)
+        .filter_by(chat_id=chat_id)
+        .order_by(Message.id.asc())
+        .all()
+    )
+    return {
+        "kodigo_version": "1.0",
+        "format": "kod",
+        "exported_at": datetime.utcnow().isoformat(),
+        "chat": {
+            "title": chat.title,
+            "is_pinned": chat.is_pinned,
+            "created_at": chat.created_at.isoformat() if chat.created_at else None,
+        },
+        "messages": [
+            {
+                "sender": m.sender,
+                "mode": m.mode,
+                "content": m.content,
+                "image_path": m.image_path,
+                "has_explanation": m.has_explanation,
+                "detailed_explanation": m.detailed_explanation,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in messages
+        ],
+    }
+
+
+@router.post("/api/chats/import")
+async def import_chat(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    import json
+    try:
+        content = await file.read()
+        data = json.loads(content.decode("utf-8"))
+    except Exception as e:
+        raise HTTPException(400, f"Invalid .kod file format: {e}")
+
+    chat_data = data.get("chat", {})
+    raw_title = chat_data.get("title") or file.filename or "Imported Chat"
+    clean_title = raw_title.replace(".kod", "").replace(".json", "").strip() or "Imported Chat"
+
+    new_chat_obj = Chat(
+        title=clean_title[:255],
+        is_pinned=bool(chat_data.get("is_pinned", False)),
+    )
+    db.add(new_chat_obj)
+    db.commit()
+    db.refresh(new_chat_obj)
+
+    messages_data = data.get("messages", [])
+    msg_objects = []
+    for msg in messages_data:
+        msg_obj = Message(
+            chat_id=new_chat_obj.id,
+            sender=msg.get("sender", "user"),
+            mode=msg.get("mode", "quiz"),
+            content=msg.get("content", ""),
+            image_path=msg.get("image_path"),
+            has_explanation=bool(msg.get("has_explanation", False)),
+            detailed_explanation=msg.get("detailed_explanation"),
+        )
+        msg_objects.append(msg_obj)
+
+    if msg_objects:
+        db.add_all(msg_objects)
+        db.commit()
+
+    return {
+        "chat": serialize(new_chat_obj),
+        "messages": [serialize(m) for m in msg_objects],
+    }
+
+
 @router.post("/api/chats/batch")
 def batch_chats(chat_ids: list[int] = Body(..., embed=True), db: Session = Depends(get_db)):
     """Efficient batch processing endpoint to fetch multiple chats in a single DB query."""

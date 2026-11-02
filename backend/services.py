@@ -8,29 +8,73 @@ from abc import ABC, abstractmethod
 OCR_SPACE_ENDPOINT = "https://api.ocr.space/parse/image"
 OCR_SPACE_DEMO_KEY = "helloworld"
 
+_paddle_ocr_engine = None
 
-def _extract_text_local(path: str) -> str:
+
+def get_paddle_ocr():
+    global _paddle_ocr_engine
+    if _paddle_ocr_engine is None:
+        from paddleocr import PaddleOCR
+        # Initialize PaddleOCR with English language and orientation classification
+        _paddle_ocr_engine = PaddleOCR(use_angle_cls=True, lang="en")
+    return _paddle_ocr_engine
+
+
+def _extract_paddleocr(path: str) -> str:
+    engine = get_paddle_ocr()
+    result = engine.ocr(path, cls=True)
+    if not result:
+        return ""
+    lines = []
+    for block in result:
+        if not block:
+            continue
+        for line in block:
+            if line and len(line) >= 2 and line[1]:
+                text = line[1][0]
+                if text:
+                    lines.append(str(text))
+    return "\n".join(lines).strip()
+
+
+def _extract_text_local(path: str, provider: str = "paddleocr") -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext == ".pdf":
         from pypdf import PdfReader
         return "\n".join((p.extract_text() or "") for p in PdfReader(path).pages)
     if ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"):
-        import pytesseract
-        from PIL import Image
-        return pytesseract.image_to_string(Image.open(path))
+        if provider == "paddleocr":
+            try:
+                return _extract_paddleocr(path)
+            except Exception as ocr_err:
+                print(f"[PaddleOCR fallback]: {ocr_err}")
+                try:
+                    import pytesseract
+                    from PIL import Image
+                    return pytesseract.image_to_string(Image.open(path))
+                except Exception:
+                    return ""
+        elif provider == "tesseract":
+            import pytesseract
+            from PIL import Image
+            return pytesseract.image_to_string(Image.open(path))
     with open(path, "r", errors="ignore") as f:
         return f.read()
 
 
 async def extract_text(path: str, settings) -> str:
     ext = os.path.splitext(path)[1].lower()
+    provider = getattr(settings, "ocr_provider", "paddleocr") or "paddleocr"
+
     if ext not in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"):
         import asyncio
-        return await asyncio.to_thread(_extract_text_local, path)
-    if settings.ocr_provider == "tesseract":
-        import asyncio
-        return await asyncio.to_thread(_extract_text_local, path)
+        return await asyncio.to_thread(_extract_text_local, path, provider)
 
+    if provider in ("paddleocr", "tesseract"):
+        import asyncio
+        return await asyncio.to_thread(_extract_text_local, path, provider)
+
+    # Fallback to online OCR if explicitly configured
     content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
     with open(path, "rb") as image_file:
         image_bytes = image_file.read()
@@ -99,25 +143,15 @@ async def list_models(provider: str, api_key: str | None, ollama_url: str) -> li
         if provider == "ollama":
             r = await c.get(f"{ollama_url.rstrip('/')}/api/tags")
             r.raise_for_status()
-            return sorted(model["name"] for model in r.json().get("models", []))
-        if provider == "gemini":
-            if not api_key:
-                raise ValueError("Enter an API key to load Gemini models.")
-            r = await c.get("https://generativelanguage.googleapis.com/v1beta/models",
-                            headers={"x-goog-api-key": api_key})
-            r.raise_for_status()
-            return sorted(
-                model["name"].removeprefix("models/")
-                for model in r.json().get("models", [])
-                if "generateContent" in model.get("supportedGenerationMethods", [])
-            )
+            return [m["name"] for m in r.json().get("models", [])]
         if provider == "openai":
-            if not api_key:
-                raise ValueError("Enter an API key to load OpenAI models.")
             r = await c.get("https://api.openai.com/v1/models",
-                            headers={"Authorization": f"Bearer {api_key}"})
+                headers={"Authorization": f"Bearer {api_key}"})
             r.raise_for_status()
-            prefixes = ("gpt-", "o1", "o3", "o4", "chatgpt-")
-            return sorted(model["id"] for model in r.json().get("data", [])
-                          if model.get("id", "").startswith(prefixes))
-    raise ValueError("Unsupported AI provider.")
+            return sorted(m["id"] for m in r.json().get("data", []) if "gpt" in m["id"])
+        if provider == "gemini":
+            r = await c.get(f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}")
+            r.raise_for_status()
+            return sorted(m["name"].replace("models/", "") for m in r.json().get("models", [])
+                          if "gemini" in m.get("name", ""))
+    return []

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import ChatFeed from "./components/ChatFeed";
 import Header from "./components/Header";
@@ -17,9 +17,15 @@ export default function App() {
   const [sidebar, setSidebar] = useState(window.innerWidth >= 768);
   const [modal, setModal] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(false);
   const [error, setError] = useState("");
 
-  // Efficient batch / list retrieval of chats
+  // In-memory cache for loaded chat messages to provide instant 0ms switching
+  const messagesCacheRef = useRef(new Map());
+  const activeChatIdRef = useRef(activeId);
+  activeChatIdRef.current = activeId;
+
+  // Fetch list of chats
   const refreshChats = useCallback(async () => {
     try {
       const data = await api.chats();
@@ -42,31 +48,57 @@ export default function App() {
     })();
   }, [refreshChats]);
 
-  // Database optimization: Lazy loading - only retrieve messages for the chat being opened
-  const select = useCallback(
-    async (id) => {
-      if (id === activeId) return; // Prevent unnecessary duplicate fetch
-      setActiveId(id);
-      setError("");
-      try {
-        const chatMessages = await api.messages(id);
-        setMessages(chatMessages);
-      } catch (requestError) {
-        setError(requestError.message);
-      }
-      if (window.innerWidth < 768) setSidebar(false);
-    },
-    [activeId]
-  );
+  // Instant zero-delay chat selection with cache-first strategy
+  const select = useCallback((id) => {
+    if (!id) return;
+    if (window.innerWidth < 768) setSidebar(false);
+
+    // If already active and has loaded messages, do nothing
+    if (id === activeChatIdRef.current && messagesCacheRef.current.has(id)) {
+      return;
+    }
+
+    activeChatIdRef.current = id;
+    setActiveId(id);
+    setError("");
+
+    // Instant cache hit: render cached messages immediately without waiting for network
+    if (messagesCacheRef.current.has(id)) {
+      setMessages(messagesCacheRef.current.get(id));
+      setLoadingChat(false);
+    } else {
+      // Clear previous messages immediately and show fast loader
+      setMessages([]);
+      setLoadingChat(true);
+    }
+
+    // Fetch fresh messages in background / on-demand
+    api.messages(id)
+      .then((chatMessages) => {
+        messagesCacheRef.current.set(id, chatMessages);
+        if (activeChatIdRef.current === id) {
+          setMessages(chatMessages);
+          setLoadingChat(false);
+        }
+      })
+      .catch((requestError) => {
+        if (activeChatIdRef.current === id) {
+          setError(requestError.message);
+          setLoadingChat(false);
+        }
+      });
+  }, []);
 
   const newChat = useCallback(async () => {
     try {
       const chat = await api.newChat();
-      await refreshChats();
+      activeChatIdRef.current = chat.id;
       setActiveId(chat.id);
       setMessages([]);
+      messagesCacheRef.current.set(chat.id, []);
       setError("");
       if (window.innerWidth < 768) setSidebar(false);
+      await refreshChats();
       return chat.id;
     } catch (requestError) {
       setError(requestError.message);
@@ -77,8 +109,10 @@ export default function App() {
   const deleteChat = useCallback(
     async (id) => {
       try {
+        messagesCacheRef.current.delete(id);
         await api.delChat(id);
-        if (id === activeId) {
+        if (id === activeChatIdRef.current) {
+          activeChatIdRef.current = null;
           setActiveId(null);
           setMessages([]);
         }
@@ -87,14 +121,14 @@ export default function App() {
         setError(requestError.message);
       }
     },
-    [activeId, refreshChats]
+    [refreshChats]
   );
 
   // Chat pinning handler
   const pinChat = useCallback(
     async (id, pinned) => {
       try {
-        // Optimistic UI update
+        // Optimistic UI update for instant response
         setChats((prev) =>
           prev.map((c) => (c.id === id ? { ...c, is_pinned: pinned } : c))
         );
@@ -108,15 +142,76 @@ export default function App() {
     [refreshChats]
   );
 
+  // Chat renaming handler
+  const renameChat = useCallback(
+    async (id, newTitle) => {
+      try {
+        setChats((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, title: newTitle } : c))
+        );
+        await api.renameChat(id, newTitle);
+        await refreshChats();
+      } catch (err) {
+        setError("Rename failed: " + err.message);
+        await refreshChats();
+      }
+    },
+    [refreshChats]
+  );
+
+  // Chat export handler (.kod file)
+  const exportChat = useCallback(async (id, title) => {
+    try {
+      const data = await api.exportChat(id);
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cleanName = (title || "chat")
+        .replace(/[^\w\s-]/gi, "")
+        .replace(/\s+/g, "_")
+        .slice(0, 50);
+      a.download = `${cleanName || "chat"}.kod`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError("Export failed: " + err.message);
+    }
+  }, []);
+
+  // Chat import handler (.kod file)
+  const importChat = useCallback(
+    async (file) => {
+      try {
+        const result = await api.importChat(file);
+        if (result?.chat) {
+          await refreshChats();
+          messagesCacheRef.current.set(result.chat.id, result.messages || []);
+          select(result.chat.id);
+        }
+      } catch (err) {
+        setError("Import failed: " + err.message);
+      }
+    },
+    [refreshChats, select]
+  );
+
   const send = useCallback(
     async (text, file) => {
       setError("");
       setLoading(true);
       try {
-        const id = activeId ?? (await newChat());
+        const id = activeChatIdRef.current ?? (await newChat());
         if (!id) return;
         const result = await api.send(id, text, mode, file);
-        setMessages((previous) => [...previous, result.user, result.ai]);
+        setMessages((previous) => {
+          const updated = [...previous, result.user, result.ai];
+          messagesCacheRef.current.set(id, updated);
+          return updated;
+        });
         await refreshChats();
       } catch (requestError) {
         setError(requestError.message);
@@ -124,7 +219,7 @@ export default function App() {
         setLoading(false);
       }
     },
-    [activeId, mode, newChat, refreshChats]
+    [mode, newChat, refreshChats]
   );
 
   const saveSettings = useCallback(async (value) => {
@@ -154,10 +249,10 @@ export default function App() {
 
   const openModal = useCallback(
     async (key) => {
-      if (key === "chat" && !activeId) await newChat();
+      if (key === "chat" && !activeChatIdRef.current) await newChat();
       setModal(key);
     },
-    [activeId, newChat]
+    [newChat]
   );
 
   const toggleSidebar = useCallback(() => {
@@ -193,7 +288,7 @@ export default function App() {
         settings={settings}
         onModal={openModal}
       />
-      <div className="flex-1 flex min-h-0 relative">
+      <div className="flex-1 flex min-h-0 relative overflow-hidden">
         <Sidebar
           open={sidebar}
           chats={chats}
@@ -202,9 +297,18 @@ export default function App() {
           onNew={newChat}
           onDelete={deleteChat}
           onPin={pinChat}
+          onRename={renameChat}
+          onExport={exportChat}
+          onImport={importChat}
+          onClose={() => setSidebar(false)}
         />
         <main className="flex-1 flex flex-col min-w-0 bg-slate-950/80">
-          <ChatFeed messages={messages} loading={loading} error={error} />
+          <ChatFeed
+            messages={messages}
+            loading={loading}
+            loadingChat={loadingChat}
+            error={error}
+          />
           <InputBar
             mode={mode}
             setMode={setMode}
