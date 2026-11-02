@@ -154,7 +154,8 @@ export default function SetupSettingsFields({
         </Field>
       ) : (
         <Field
-          label={`Cloud API Key ${settings.has_key ? "(saved — leave blank to keep)" : ""}`}
+          label="Cloud API Key"
+          hint="Your API key is stored privately on this device's browser and is never shared with other users."
         >
           <input
             className={inputClass}
@@ -162,7 +163,7 @@ export default function SetupSettingsFields({
             autoComplete="new-password"
             value={settings.cloud_api_key || ""}
             onChange={set("cloud_api_key")}
-            placeholder={settings.has_key ? "••••••••" : "Paste API key"}
+            placeholder={settings.cloud_api_key ? "•••••••• (Saved on this device)" : "Paste your API key"}
           />
         </Field>
       )}

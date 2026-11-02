@@ -13,8 +13,8 @@ export default function SettingsModal({ settings, onSave, onClose }) {
   const [activeTab, setActiveTab] = useState("setup");
   const [value, setValue] = useState({
     ...settings,
-    cloud_api_key: "",
-    ocr_api_key: "",
+    cloud_api_key: settings.cloud_api_key || "",
+    ocr_api_key: settings.ocr_api_key || "",
   });
 
   return (

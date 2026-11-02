@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
-from core import build_context, get_settings, save_upload, serialize
+from core import build_context, get_settings, resolve_effective_settings, save_upload, serialize
 from models import Chat, Message, get_db
 from services import generate, extract_text
 
@@ -173,6 +173,7 @@ def get_messages(
 @router.post("/api/chats/{chat_id}/messages")
 async def send_message(
     chat_id: int,
+    request: Request,
     content: str = Form(""),
     mode: str = Form("quiz"),
     image: UploadFile = File(None),
@@ -184,7 +185,8 @@ async def send_message(
         raise HTTPException(404, "Chat not found")
 
     image_url, ocr_text = None, ""
-    settings = get_settings(db)
+    # Per-request settings: uses device's private credentials from headers
+    settings = resolve_effective_settings(db, request)
     if image:
         path = save_upload(image)
         image_url = "/" + path.replace("\\", "/")
@@ -253,6 +255,7 @@ async def send_message(
 @router.post("/api/messages/{message_id}/explain")
 async def explain_message(
     message_id: int,
+    request: Request,
     item: int | None = Body(None, embed=True),
     db: Session = Depends(get_db),
 ):
@@ -284,8 +287,9 @@ async def explain_message(
     if context:
         system += "\n\nReference material:\n" + context
     try:
+        settings = resolve_effective_settings(db, request)
         text = await generate(
-            get_settings(db), system, [{"role": "user", "content": prompt}]
+            settings, system, [{"role": "user", "content": prompt}]
         )
     except Exception as error:
         raise HTTPException(502, f"AI provider error: {error}") from error
