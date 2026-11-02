@@ -83,7 +83,10 @@ export default function ChatFeed({ messages, loading, loadingChat, loadingStatus
       <div className="max-w-3xl mx-auto flex flex-col gap-4">
         {messages.length === 0 && (
           <div className="text-center text-slate-500 mt-24">
-            <div className="text-3xl font-bold tracking-widest text-slate-300 mb-2">KODIGO</div>
+            <div className="text-3xl font-bold tracking-widest text-slate-200 mb-1">KODIGO</div>
+            <p className="text-xs text-slate-400 mb-3">
+              Created by <span className="font-semibold text-indigo-400">Kurt Justin J. Malubay</span> <span className="text-slate-500">(SASHIMI24)</span>
+            </p>
             Drop a quiz image or ask a question to begin.
           </div>
         )}
