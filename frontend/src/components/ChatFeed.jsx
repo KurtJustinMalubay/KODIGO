@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Loader2, MessageSquare, Sparkles } from "lucide-react";
-import { api } from "../api";
+import { api, resolveUrl } from "../api";
 import Md from "./Md";
 
 function AiMessage({ message }) {
@@ -53,7 +53,7 @@ function UserMessage({ message }) {
   const isImage = message.image_path && /\.(png|jpe?g|webp|gif|bmp)$/i.test(message.image_path);
   return (
     <div className="self-end max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-4 py-2 text-sm shadow-sm">
-      {isImage && <img src={message.image_path} alt="upload" className="rounded-lg mb-2 max-h-60" />}
+      {isImage && <img src={resolveUrl(message.image_path)} alt="upload" className="rounded-lg mb-2 max-h-60" />}
       {message.image_path ? (
         <details><summary className="cursor-pointer text-slate-400 text-xs">Extracted text</summary><pre className="whitespace-pre-wrap">{message.content}</pre></details>
       ) : <div className="whitespace-pre-wrap">{message.content}</div>}

@@ -1,4 +1,15 @@
-async function req(url, opts = {}) {
+export const API_BASE = (
+  import.meta.env.VITE_API_URL || "https://kodigo-backend.onrender.com"
+).replace(/\/$/, "");
+
+export function resolveUrl(path) {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
+async function req(path, opts = {}) {
+  const url = path.startsWith("http") ? path : `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
   const r = await fetch(url, opts);
   if (!r.ok) {
     let msg = r.statusText;
