@@ -1,4 +1,5 @@
 import { localDB } from "./db";
+import { extractTextOnDevice } from "./utils/imageOptimizer";
 
 export const API_BASE = (
   import.meta.env.VITE_API_URL || "https://kodigo-backend.onrender.com"
@@ -6,10 +7,25 @@ export const API_BASE = (
 
 const SETTINGS_KEY = "kodigo_device_settings";
 
+export const DEFAULT_SETTINGS = {
+  provider: "gemini",
+  model_name: "gemini-2.0-flash",
+  ollama_url: "http://localhost:11434",
+  cloud_api_key: "",
+  ocr_provider: "paddleocr",
+  default_mode: "quiz",
+  font_size: "medium",
+  theme: "dark",
+  setup_complete: false,
+};
+
 export function getLocalSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_SETTINGS, ...parsed };
+    }
   } catch (e) {
     console.warn("Failed to load settings from localStorage:", e);
   }
@@ -26,7 +42,12 @@ export function saveLocalSettings(settings) {
 
 export function resolveUrl(path) {
   if (!path) return "";
-  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("blob:") || path.startsWith("data:")) {
+  if (
+    path.startsWith("http://") ||
+    path.startsWith("https://") ||
+    path.startsWith("blob:") ||
+    path.startsWith("data:")
+  ) {
     return path;
   }
   return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
@@ -66,10 +87,10 @@ const json = (method, body) => ({
 });
 
 /**
- * Local-First API Client:
- * All chats, messages, references, and settings are stored directly
- * on the user's device via IndexedDB and localStorage for 100% data persistency.
- * Render backend functions as a stateless compute/AI/OCR engine.
+ * 100% Local-First Architecture:
+ * - Chats, messages, references, images, and settings are stored entirely on the user's device (IndexedDB + localStorage).
+ * - OnRender backend functions strictly as a stateless compute engine for AI generation and OCR.
+ * - ZERO user data is stored on or lost by OnRender redeployments, restarts, or updates.
  */
 export const api = {
   // === CHATS (Local-First IndexedDB) ===
@@ -125,13 +146,28 @@ export const api = {
       body: f,
     });
 
-    // 5. Persist both user message and AI message directly into local device IndexedDB
+    // 5. Convert image to Data URL on client so it persists permanently in IndexedDB even if Render disk resets
+    let localImagePath = result.user?.image_path || null;
+    if (file) {
+      try {
+        localImagePath = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve(result.user?.image_path || null);
+          reader.readAsDataURL(file);
+        });
+      } catch (e) {
+        console.warn("Failed to create local image data URL:", e);
+      }
+    }
+
+    // 6. Persist both user message and AI message directly into local device IndexedDB
     const savedUser = await localDB.addMessage({
       chat_id: id,
       sender: "user",
       mode: result.user?.mode || mode,
       content: result.user?.content || content,
-      image_path: result.user?.image_path || null,
+      image_path: localImagePath,
       created_at: new Date().toISOString(),
     });
 
@@ -158,7 +194,6 @@ export const api = {
     return {
       user: savedUser,
       ai: savedAi,
-      mode: result.mode || mode,
     };
   },
 
@@ -253,7 +288,7 @@ export const api = {
     return { chat: newChat, messages: savedMessages };
   },
 
-  // === REFERENCES (Local-First IndexedDB) ===
+  // === REFERENCES (100% Device-Local in IndexedDB) ===
   refs: async (scope) => {
     return await localDB.getReferences(scope);
   },
@@ -261,24 +296,52 @@ export const api = {
   addRef: async (scope, file) => {
     let extractedText = "";
 
-    // If text file, read on device immediately
-    if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
+    // 1. Text/code files: read instantly on device
+    if (
+      file.type.startsWith("text/") ||
+      file.name.endsWith(".txt") ||
+      file.name.endsWith(".md") ||
+      file.name.endsWith(".csv") ||
+      file.name.endsWith(".json")
+    ) {
       extractedText = await file.text();
+    } else if (file.type.startsWith("image/")) {
+      // 2. Image: run OCR on device first for 0ms lag & zero server dependency
+      try {
+        extractedText = await extractTextOnDevice(file);
+      } catch (e) {
+        console.warn("Client OCR fallback:", e);
+      }
+      // If client OCR yielded nothing or failed, request stateless text extraction
+      if (!extractedText.trim()) {
+        try {
+          const f = new FormData();
+          f.append("file", file);
+          const res = await req("/api/extract-text", {
+            method: "POST",
+            body: f,
+          });
+          extractedText = res?.extracted_text || "";
+        } catch (err) {
+          console.warn("Stateless OCR extraction fallback:", err);
+        }
+      }
     } else {
-      // Send to backend text extractor
+      // 3. PDFs or other documents: send to stateless text extractor
       try {
         const f = new FormData();
         f.append("file", file);
-        const res = await req("/api/universal-references", {
+        const res = await req("/api/extract-text", {
           method: "POST",
           body: f,
         });
         extractedText = res?.extracted_text || "";
       } catch (err) {
-        console.warn("Server OCR extraction error:", err);
+        console.warn("Text extraction error:", err);
       }
     }
 
+    // Save directly into local device IndexedDB — NEVER lost when Render deploys!
     return await localDB.addReference(scope, file.name, extractedText);
   },
 
@@ -290,42 +353,26 @@ export const api = {
     return await localDB.deleteReference(id);
   },
 
-  // === SETTINGS (Device-isolated in localStorage) ===
-  settings: async () => {
+  // === SETTINGS (100% Device-Local in localStorage — Never wiped by Render) ===
+  getSettingsSync: () => {
     const local = getLocalSettings();
-    if (local && local.setup_complete) {
-      return local;
-    }
-    try {
-      const server = await req("/api/settings");
-      return { ...server, ...(local || {}) };
-    } catch {
-      return (
-        local || {
-          provider: "gemini",
-          model_name: "gemini-2.0-flash",
-          ollama_url: "http://localhost:11434",
-          cloud_api_key: "",
-          ocr_provider: "paddleocr",
-          default_mode: "quiz",
-          font_size: "medium",
-          theme: "dark",
-          setup_complete: false,
-        }
-      );
-    }
+    if (local) return local;
+    return { ...DEFAULT_SETTINGS };
+  },
+
+  settings: async () => {
+    return api.getSettingsSync();
   },
 
   saveSettings: async (s) => {
-    saveLocalSettings(s);
-    try {
-      await req("/api/settings", json("PUT", s));
-    } catch {}
-    return s;
+    const current = api.getSettingsSync();
+    const updated = { ...current, ...s, setup_complete: true };
+    saveLocalSettings(updated);
+    return updated;
   },
 
   models: (options) => {
-    const local = getLocalSettings();
+    const local = api.getSettingsSync();
     const payload = {
       provider: options.provider || local?.provider || "gemini",
       cloud_api_key: options.cloud_api_key || local?.cloud_api_key || "",
