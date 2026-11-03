@@ -15,4 +15,18 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    target: "esnext",
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom"],
+          "vendor-katex": ["katex", "rehype-katex", "remark-math"],
+          "vendor-icons": ["lucide-react"],
+          "vendor-xlsx": ["xlsx"],
+        },
+      },
+    },
+  },
 });

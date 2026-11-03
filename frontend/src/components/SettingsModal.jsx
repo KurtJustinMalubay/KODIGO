@@ -69,8 +69,11 @@ export default function SettingsModal({ settings, onSave, onClose }) {
         </button>
         <button
           type="button"
-          onClick={() => onSave(value)}
-          className="flex-1 bg-indigo-600 hover:bg-indigo-500 rounded-xl px-4 py-3 text-sm text-white font-medium shadow-md shadow-indigo-600/20 transition-colors"
+          onClick={async () => {
+            await onSave(value);
+            onClose();
+          }}
+          className="flex-1 bg-indigo-600 hover:bg-indigo-500 rounded-xl px-4 py-3 text-sm text-white font-medium shadow-md shadow-indigo-600/20 transition-colors cursor-pointer"
         >
           Save Changes
         </button>

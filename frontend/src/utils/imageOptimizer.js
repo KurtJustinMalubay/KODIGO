@@ -1,14 +1,17 @@
 /**
  * Client-Side Image Optimization & OCR Utility
- * Offloads heavy image processing and OCR from Render's free tier
+ * Offloads heavy image processing from Render's free tier
  * to the user's device (phone/PC) using HTML5 Canvas & Tesseract.js WASM.
  */
 
+let _tesseractWorkerPromise = null;
+let _currentProgressCallback = null;
+
 /**
  * Resizes and compresses an image file on the user's device using HTML5 Canvas.
- * Reduces 10MB mobile photos down to ~150-250KB in ~30ms.
+ * Reduces 10MB mobile photos down to ~100-180KB in ~20-30ms.
  */
-export async function compressImage(file, maxDimension = 1400, quality = 0.82) {
+export async function compressImage(file, maxDimension = 1200, quality = 0.8) {
   if (!file || !file.type.startsWith("image/")) {
     return file;
   }
@@ -66,31 +69,38 @@ export async function compressImage(file, maxDimension = 1400, quality = 0.82) {
 }
 
 /**
- * Runs OCR directly in the user's browser using Tesseract.js WebAssembly / Web Worker.
- * Completely eliminates server CPU & RAM usage on Render free tier.
+ * Runs OCR directly in the browser using a singleton Tesseract.js Web Worker.
+ * Used for local models (Ollama) or when offline.
  */
 export async function extractTextOnDevice(imageFile, onProgress) {
   if (!imageFile || !imageFile.type.startsWith("image/")) {
     return "";
   }
 
+  _currentProgressCallback = onProgress;
   try {
-    const { createWorker } = await import("tesseract.js");
-    const worker = await createWorker("eng", 1, {
-      logger: (m) => {
-        if (m.status === "recognizing text" && onProgress) {
-          const pct = Math.round((m.progress || 0) * 100);
-          onProgress(`Scanning image (${pct}%)...`);
-        }
-      },
-    });
+    if (!_tesseractWorkerPromise) {
+      _tesseractWorkerPromise = (async () => {
+        const { createWorker } = await import("tesseract.js");
+        return await createWorker("eng", 1, {
+          logger: (m) => {
+            if (m.status === "recognizing text" && _currentProgressCallback) {
+              const pct = Math.round((m.progress || 0) * 100);
+              _currentProgressCallback(`Scanning image (${pct}%)...`);
+            }
+          },
+        });
+      })();
+    }
 
+    const worker = await _tesseractWorkerPromise;
     const ret = await worker.recognize(imageFile);
-    await worker.terminate();
-
     return (ret?.data?.text || "").trim();
   } catch (error) {
-    console.warn("Client-side OCR fallback to backend:", error);
+    console.warn("Client-side OCR fallback:", error);
+    _tesseractWorkerPromise = null;
     return "";
+  } finally {
+    _currentProgressCallback = null;
   }
 }

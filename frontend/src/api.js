@@ -2,8 +2,18 @@ import { localDB } from "./db";
 import { extractTextOnDevice } from "./utils/imageOptimizer";
 
 export const API_BASE = (
-  import.meta.env.VITE_API_URL || "https://kodigo-backend.onrender.com"
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://kodigo-backend.onrender.com"
 ).replace(/\/$/, "");
+
+// Render warm-up ping: silently pings the backend so it's awake before user finishes typing
+export function warmupBackend() {
+  try {
+    fetch(`${API_BASE}/api/ping`, { method: "GET", mode: "cors" }).catch(() => {});
+  } catch {}
+}
+warmupBackend();
 
 const SETTINGS_KEY = "kodigo_device_settings";
 
@@ -77,7 +87,6 @@ async function req(path, opts = {}) {
   const local = getLocalSettings();
   const headers = { ...(opts.headers || {}) };
   if (local) {
-    // Only send custom key if in custom mode or if user has entered one and not in free mode
     if (local.key_mode === "custom" && local.cloud_api_key) {
       headers["x-cloud-api-key"] = local.cloud_api_key;
     } else if (local.key_mode !== "free" && local.cloud_api_key) {
@@ -109,8 +118,8 @@ const json = (method, body) => ({
 /**
  * 100% Local-First Architecture:
  * - Chats, messages, references, images, and settings are stored entirely on the user's device (IndexedDB + localStorage).
- * - OnRender backend functions strictly as a stateless compute engine for AI generation and OCR.
- * - ZERO user data is stored on or lost by OnRender redeployments, restarts, or updates.
+ * - OnRender backend functions as a fast compute engine for AI generation, streaming, and OCR.
+ * - ZERO user data is lost by Render restarts.
  */
 export const api = {
   // === CHATS (Local-First IndexedDB) ===
@@ -143,8 +152,8 @@ export const api = {
     return await localDB.getMessages(id);
   },
 
-  // === AI INFERENCE (Stateless Backend Call + Local Persistence) ===
-  send: async (id, content, mode, file, clientOcrText = "", subjectFilter = null) => {
+  // === AI INFERENCE (Stateless Render Compute + Local Persistence + Live Streaming) ===
+  send: async (id, content, mode, file, clientOcrText = "", subjectFilter = null, onChunk = null) => {
     // 1. Gather recent conversation history from local database
     const localMsgs = await localDB.getMessages(id);
     const history = localMsgs.slice(-10).map((m) => ({
@@ -163,7 +172,7 @@ export const api = {
       }
     }
 
-    // 3. Prepare payload for Render stateless AI compute
+    // 3. Prepare payload for Render AI compute
     const f = new FormData();
     f.append("content", content);
     f.append("mode", mode);
@@ -172,13 +181,111 @@ export const api = {
     f.append("history_json", JSON.stringify(history));
     f.append("context_text", contextText);
 
-    // 4. Request AI inference from Render backend
-    const result = await req(`/api/chats/${id}/messages`, {
-      method: "POST",
-      body: f,
-    });
+    // Build headers from local settings
+    const local = getLocalSettings();
+    const headers = {};
+    if (local) {
+      if ((local.key_mode === "custom" && local.cloud_api_key) || (local.key_mode !== "free" && local.cloud_api_key)) {
+        headers["x-cloud-api-key"] = local.cloud_api_key;
+      }
+      if (local.provider) headers["x-ai-provider"] = local.provider;
+      if (local.model_name) headers["x-model-name"] = local.model_name;
+      if (local.ollama_url) headers["x-ollama-url"] = local.ollama_url;
+      if (local.ocr_provider) headers["x-ocr-provider"] = local.ocr_provider;
+    }
 
-    // 5. Convert image to Data URL on client so it persists permanently in IndexedDB even if Render disk resets
+    let result = null;
+
+    // 4. Try ultra-fast streaming if onChunk handler is provided
+    if (typeof onChunk === "function") {
+      try {
+        const streamUrl = `${API_BASE}/api/chats/${id}/stream`;
+        const res = await fetch(streamUrl, {
+          method: "POST",
+          headers,
+          body: f,
+        });
+
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+          let streamedText = "";
+          let userMeta = null;
+          let aiMeta = null;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop() || "";
+
+            for (const part of parts) {
+              const line = part.trim();
+              if (!line.startsWith("data: ")) continue;
+              const jsonStr = line.slice(6);
+              try {
+                const event = JSON.parse(jsonStr);
+                if (event.type === "start") {
+                  userMeta = event.user;
+                } else if (event.type === "chunk") {
+                  streamedText += event.delta;
+                  onChunk(streamedText);
+                } else if (event.type === "done") {
+                  aiMeta = event.ai;
+                  streamedText = event.reply || streamedText;
+                } else if (event.type === "error") {
+                  throw new Error(event.error);
+                }
+              } catch (parseErr) {
+                if (parseErr.message && !parseErr.message.includes("JSON")) {
+                  throw parseErr;
+                }
+              }
+            }
+          }
+
+          const resolvedAiText =
+            (aiMeta && aiMeta.content && aiMeta.content.trim()) ||
+            streamedText.trim() ||
+            "";
+
+          if (resolvedAiText) {
+            result = {
+              user: userMeta || {
+                chat_id: id,
+                sender: "user",
+                mode,
+                content,
+              },
+              ai: {
+                chat_id: id,
+                sender: "ai",
+                mode,
+                ...(aiMeta || {}),
+                content: resolvedAiText,
+              },
+            };
+          } else {
+            console.warn("Live stream returned empty reply, falling back to standard POST");
+            result = null;
+          }
+        }
+      } catch (streamErr) {
+        console.warn("Live stream fallback to standard call:", streamErr);
+      }
+    }
+
+    // Fallback: standard non-streaming POST
+    if (!result) {
+      result = await req(`/api/chats/${id}/messages`, {
+        method: "POST",
+        body: f,
+      });
+    }
+
+    // 5. Convert image to Data URL on client so it persists permanently in IndexedDB
     let localImagePath = result.user?.image_path || null;
     if (file) {
       try {
@@ -213,7 +320,7 @@ export const api = {
 
     // Update chat title if it's the first message
     const chat = await localDB.getChat(id);
-    if (chat && (chat.title === "New Chat" || chat.title === "New Tutor Session" || !chat.title)) {
+    if (chat && (chat.title === "New Chat" || chat.title === "New Tutor Session" || chat.title === "New Tutoring Session" || !chat.title)) {
       const newTitle = (content || "Image Question").slice(0, 40);
       await localDB.updateChat(id, {
         title: newTitle,
@@ -293,7 +400,7 @@ export const api = {
     const data = JSON.parse(text);
 
     const chatData = data.chat || {};
-    const rawTitle = chatData.title || file.name.replace(/\.[^/.]+$/, "") || "Imported Chat";
+    const rawTitle = (chatData.title || file.name.replace(/\.[^/.]+$/, "")).slice(0, 40);
     const newChat = await localDB.createChat(rawTitle);
 
     if (chatData.is_pinned) {
@@ -328,7 +435,6 @@ export const api = {
   addRef: async (scope, file) => {
     let extractedText = "";
 
-    // 1. Text/code files: read instantly on device
     if (
       file.type.startsWith("text/") ||
       file.name.endsWith(".txt") ||
@@ -338,13 +444,11 @@ export const api = {
     ) {
       extractedText = await file.text();
     } else if (file.type.startsWith("image/")) {
-      // 2. Image: run OCR on device first for 0ms lag & zero server dependency
       try {
         extractedText = await extractTextOnDevice(file);
       } catch (e) {
         console.warn("Client OCR fallback:", e);
       }
-      // If client OCR yielded nothing or failed, request stateless text extraction
       if (!extractedText.trim()) {
         try {
           const f = new FormData();
@@ -359,7 +463,6 @@ export const api = {
         }
       }
     } else {
-      // 3. PDFs or other documents: send to stateless text extractor
       try {
         const f = new FormData();
         f.append("file", file);
@@ -373,7 +476,6 @@ export const api = {
       }
     }
 
-    // Save directly into local device IndexedDB — NEVER lost when Render deploys!
     return await localDB.addReference(scope, file.name, extractedText);
   },
 
@@ -385,7 +487,7 @@ export const api = {
     return await localDB.deleteReference(id);
   },
 
-  // === SETTINGS (100% Device-Local in localStorage — Never wiped by Render) ===
+  // === SETTINGS (100% Device-Local in localStorage) ===
   getSettingsSync: () => {
     const local = getLocalSettings();
     if (local) return local;
@@ -413,7 +515,6 @@ export const api = {
 
   models: (options = {}) => {
     const local = api.getSettingsSync();
-    // In free tier mode, omit cloud_api_key so backend uses server key
     const isFreeTier =
       options.key_mode === "free" ||
       (!options.cloud_api_key && (options.key_mode !== "custom" && local?.key_mode === "free"));
@@ -442,8 +543,8 @@ export const api = {
 
   tutor: {
     getMessages: () => localDB.getTutorMessages(),
-    send: async (content, file, clientOcrText = "", subjectFilter = null) => {
-      return await api.send("tutor_session", content, "tutor", file, clientOcrText, subjectFilter);
+    send: async (content, file, clientOcrText = "", subjectFilter = null, onChunk = null) => {
+      return await api.send("tutor_session", content, "tutor", file, clientOcrText, subjectFilter, onChunk);
     },
     clear: () => localDB.clearTutorMessages(),
   },

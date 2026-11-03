@@ -5,28 +5,17 @@ import rehypeKatex from "rehype-katex";
 
 /**
  * Normalises raw AI output so KaTeX and ReactMarkdown can render it reliably.
- *
- * Fixes:
- *  1. Nested delimiters like `$$ $ ... $ $$` or `$$ $ ... $$` that cause KaTeX errors
- *  2. Multi-line environments (`pmatrix`, `bmatrix`, `cases`, `aligned`, `array`, `matrix`)
- *     wrapped in single `$` -> converted to proper display math `$$`
- *  3. Orphaned `\begin{...}...\end{...}` with no delimiters -> wrapped in `$$`
- *  4. `$$` glued to adjacent text -> given its own clean lines
- *  5. Stray `\\` line-breaks in plain prose outside math -> converted to newlines
- *  6. Odd / unclosed `$$` delimiter count -> safely closed
  */
 export function fixLatex(text) {
   if (!text) return "";
   let s = String(text);
 
-  // 1. Strip nested/accidental dollar signs inside display blocks:
-  //    e.g. `$$ $ \begin{pmatrix}...$ $$` -> `$$\n\begin{pmatrix}...\n$$`
+  // 1. Strip nested/accidental dollar signs inside display blocks
   s = s.replace(/\$\$\s*\$([\s\S]*?)\$\s*\$\$/g, "\n$$\n$1\n$$\n");
   s = s.replace(/\$\$\s*\$([\s\S]*?)\$\$/g, "\n$$\n$1\n$$\n");
   s = s.replace(/\$\$([\s\S]*?)\$\s*\$\$/g, "\n$$\n$1\n$$\n");
 
-  // 2. Convert `$ \begin{env} ... \end{env} $` (inline dollars around block environments)
-  //    into clean display math `$$ ... $$`
+  // 2. Convert `$ \begin{env} ... \end{env} $` into clean display math `$$ ... $$`
   s = s.replace(
     /\$\s*(\\begin\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|cases|aligned|array|gather|equation)\*?\}[\s\S]*?\\end\{(?:pmatrix|bmatrix|vmatrix|Vmatrix|matrix|cases|aligned|array|gather|equation)\*?\})\s*\$/g,
     "\n$$\n$1\n$$\n"
@@ -46,7 +35,7 @@ export function fixLatex(text) {
   const parts = s.split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+?\$)/);
   s = parts
     .map((part, idx) => {
-      if (idx % 2 !== 0) return part; // inside math - preserve
+      if (idx % 2 !== 0) return part;
       return part.replace(/\\\\\s*\n/g, "\n").replace(/\\\\\s*$/gm, "");
     })
     .join("");
@@ -60,7 +49,7 @@ export function fixLatex(text) {
   return s;
 }
 
-export default function Md({ children }) {
+const Md = React.memo(function Md({ children }) {
   const content = fixLatex(children || "");
 
   return (
@@ -82,4 +71,6 @@ export default function Md({ children }) {
       </ReactMarkdown>
     </div>
   );
-}
+});
+
+export default Md;

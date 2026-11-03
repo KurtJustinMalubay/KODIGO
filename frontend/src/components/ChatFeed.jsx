@@ -5,7 +5,6 @@ import {
   Loader2,
   Maximize2,
   MessageSquare,
-  Minimize2,
   Sparkles,
   Volume2,
   VolumeX,
@@ -15,7 +14,7 @@ import { api, resolveUrl } from "../api";
 import Md from "./Md";
 import { useTextToSpeech } from "../hooks/useSpeech";
 
-function AiMessage({ message, showTimestamps }) {
+const AiMessage = React.memo(function AiMessage({ message, showTimestamps }) {
   const [explanations, setExplanations] = useState(
     message.detailed_explanation ? { all: message.detailed_explanation } : {}
   );
@@ -24,8 +23,10 @@ function AiMessage({ message, showTimestamps }) {
   const [busy, setBusy] = useState(null);
   const { isSpeaking, toggle: toggleTTS } = useTextToSpeech(message.id);
 
+  const isStreaming = Boolean(message.isStreaming);
+
   const items =
-    message.mode === "quiz"
+    message.mode === "quiz" && !isStreaming
       ? [
           ...new Set(
             [...message.content.matchAll(/^\s*(\d+)[.)]/gm)].map(
@@ -76,31 +77,49 @@ function AiMessage({ message, showTimestamps }) {
       <div
         className={`border-l-4 ${color} bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed`}
       >
-        <Md>{message.content}</Md>
+        {!message.content && isStreaming ? (
+          <div className="flex items-center gap-2 text-indigo-400 text-xs py-1">
+            <Loader2 size={13} className="animate-spin text-indigo-400" />
+            <span>Thinking...</span>
+          </div>
+        ) : !message.content ? (
+          <div className="text-slate-400 italic text-xs py-1">
+            No response generated. Please try again.
+          </div>
+        ) : (
+          <div className="relative">
+            <Md>{message.content}</Md>
+            {isStreaming && (
+              <span className="inline-block w-1.5 h-4 ml-1 bg-indigo-400 animate-pulse rounded-sm align-middle" />
+            )}
+          </div>
+        )}
 
-        {/* TTS Read Aloud + Timestamp row (Always visible on Desktop & Mobile) */}
-        <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-800/60">
-          <button
-            type="button"
-            onClick={() => toggleTTS(message.content)}
-            title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
-            className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
-              isSpeaking
-                ? "text-indigo-200 bg-indigo-900/60 border border-indigo-700/60 shadow-sm animate-pulse"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
-            }`}
-          >
-            {isSpeaking ? <VolumeX size={14} className="text-indigo-400" /> : <Volume2 size={14} />}
-            <span>{isSpeaking ? "Stop" : "Read"}</span>
-          </button>
-          {showTimestamps && timeFormatted && (
-            <div className="text-[10px] text-slate-500 text-right opacity-70 ml-auto">
-              {timeFormatted}
-            </div>
-          )}
-        </div>
+        {/* TTS Read Aloud + Timestamp row (visible after streaming finishes) */}
+        {!isStreaming && (
+          <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-800/60">
+            <button
+              type="button"
+              onClick={() => toggleTTS(message.content)}
+              title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                isSpeaking
+                  ? "text-indigo-200 bg-indigo-900/60 border border-indigo-700/60 shadow-sm animate-pulse"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
+              }`}
+            >
+              {isSpeaking ? <VolumeX size={14} className="text-indigo-400" /> : <Volume2 size={14} />}
+              <span>{isSpeaking ? "Stop" : "Read"}</span>
+            </button>
+            {showTimestamps && timeFormatted && (
+              <div className="text-[10px] text-slate-500 text-right opacity-70 ml-auto">
+                {timeFormatted}
+              </div>
+            )}
+          </div>
+        )}
 
-        {items.length > 0 && (
+        {!isStreaming && items.length > 0 && (
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3 pt-2.5 border-t border-slate-800/80">
             <button
               type="button"
@@ -134,7 +153,7 @@ function AiMessage({ message, showTimestamps }) {
           </div>
         )}
 
-        {Object.entries(explanations).map(([key, text]) => {
+        {!isStreaming && Object.entries(explanations).map(([key, text]) => {
           const isMin = !!minimized[key];
           const title =
             key === "all" ? "Detailed Explanation" : `Item #${key} Explanation`;
@@ -144,7 +163,6 @@ function AiMessage({ message, showTimestamps }) {
               key={key}
               className="mt-3 rounded-xl bg-slate-800/80 border border-slate-700/80 overflow-hidden shadow-sm transition-all"
             >
-              {/* Header Bar with Title and Controls */}
               <div
                 className={`flex items-center justify-between px-3 py-2.5 ${
                   isMin
@@ -199,7 +217,6 @@ function AiMessage({ message, showTimestamps }) {
                 </div>
               </div>
 
-              {/* Collapsible Content */}
               {!isMin && (
                 <div className="p-3 sm:p-3.5 text-slate-100 text-sm leading-relaxed overflow-x-auto">
                   <Md>{text}</Md>
@@ -210,7 +227,6 @@ function AiMessage({ message, showTimestamps }) {
         })}
       </div>
 
-      {/* Maximized Fullscreen Overlay: Bottom sheet on mobile, centered modal on desktop */}
       {maximizedKey && explanations[maximizedKey] && (
         <div
           role="dialog"
@@ -222,7 +238,6 @@ function AiMessage({ message, showTimestamps }) {
             className="bg-slate-900 border border-slate-700 text-slate-100 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-3xl h-[88vh] sm:h-auto sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
             <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-800 bg-slate-950/70 select-none shrink-0">
               <div className="flex items-center gap-2">
                 {maximizedKey === "all" ? (
@@ -249,7 +264,6 @@ function AiMessage({ message, showTimestamps }) {
               </div>
             </div>
 
-            {/* Modal Body */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 text-slate-100 text-sm leading-relaxed">
               <Md>{explanations[maximizedKey]}</Md>
             </div>
@@ -258,14 +272,26 @@ function AiMessage({ message, showTimestamps }) {
       )}
     </>
   );
-}
+});
 
-function UserMessage({ message, showTimestamps }) {
-  const isImage =
-    message.image_path && /\.(png|jpe?g|webp|gif|bmp)$/i.test(message.image_path);
+const UserMessage = React.memo(function UserMessage({ message, showTimestamps }) {
+  const isImage = Boolean(
+    message.image_path &&
+      (message.image_path.startsWith("data:") ||
+        message.image_path.startsWith("blob:") ||
+        message.image_path.includes("/uploads/") ||
+        /\.(png|jpe?g|webp|gif|bmp)(\?.*)?$/i.test(message.image_path))
+  );
   const timeFormatted = message.created_at
     ? new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;
+
+  const isAutoPrompt =
+    !message.content ||
+    message.content === "Please solve this question or problem step-by-step." ||
+    message.content === "Please solve this question." ||
+    message.content === "Analyzing image question..." ||
+    message.content === "Reviewing question image...";
 
   return (
     <div className="self-end max-w-[92%] sm:max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-3.5 sm:px-4 py-2.5 text-sm shadow-sm leading-relaxed">
@@ -276,17 +302,10 @@ function UserMessage({ message, showTimestamps }) {
           className="rounded-xl mb-2 max-h-56 w-full object-contain bg-slate-950/50"
         />
       )}
-      {message.image_path ? (
-        <details className="mt-1">
-          <summary className="cursor-pointer text-slate-400 text-xs select-none">
-            Extracted text
-          </summary>
-          <pre className="whitespace-pre-wrap text-xs text-slate-300 mt-1 max-h-40 overflow-y-auto bg-slate-900/60 p-2 rounded-lg">
-            {message.content}
-          </pre>
-        </details>
-      ) : (
-        <div className="whitespace-pre-wrap">{message.content}</div>
+      {!isAutoPrompt && (
+        <div className={isImage ? "text-xs text-slate-300 mt-1" : "whitespace-pre-wrap"}>
+          {message.content}
+        </div>
       )}
       {showTimestamps && timeFormatted && (
         <div className="text-[10px] text-slate-400 text-right mt-1 opacity-70">
@@ -295,7 +314,7 @@ function UserMessage({ message, showTimestamps }) {
       )}
     </div>
   );
-}
+});
 
 export default function ChatFeed({
   messages,
@@ -306,6 +325,7 @@ export default function ChatFeed({
   showTimestamps = false,
 }) {
   const end = useRef(null);
+
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading, loadingStatus]);
@@ -320,6 +340,9 @@ export default function ChatFeed({
       </div>
     );
   }
+
+  // Check if there is an active streaming message
+  const hasStreamingMessage = messages.some((m) => m.isStreaming);
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3 sm:py-4">
@@ -361,7 +384,7 @@ export default function ChatFeed({
             />
           )
         )}
-        {loading && (
+        {loading && !hasStreamingMessage && (
           <div className="flex items-center gap-2 text-slate-400 text-sm py-1">
             <Loader2 size={16} className="animate-spin text-indigo-400" />
             <span className="font-medium text-slate-300">

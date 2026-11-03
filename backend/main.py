@@ -1,5 +1,7 @@
+from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text
 
@@ -44,12 +46,25 @@ migrate_settings()
 migrate_chats()
 
 app = FastAPI(title="KODIGO")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/health")
+@app.get("/api/ping")
+def health_check():
+    return {
+        "status": "ok",
+        "service": "kodigo-backend",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
 app.mount("/uploads", StaticFiles(directory=UPLOADS), name="uploads")
 app.include_router(chats.router)
 app.include_router(references.router)

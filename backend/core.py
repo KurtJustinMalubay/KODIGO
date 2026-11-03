@@ -11,11 +11,17 @@ os.makedirs(UPLOADS, exist_ok=True)
 
 
 def serialize(record, exclude=("extracted_text",)):
-    return {
-        column.name: getattr(record, column.name)
-        for column in record.__table__.columns
-        if column.name not in exclude
-    }
+    if record is None:
+        return None
+    data = {}
+    for column in record.__table__.columns:
+        if column.name in exclude:
+            continue
+        val = getattr(record, column.name)
+        if hasattr(val, "isoformat"):
+            val = val.isoformat()
+        data[column.name] = val
+    return data
 
 
 def get_settings(db: Session) -> Setting:

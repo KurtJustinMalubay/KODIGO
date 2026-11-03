@@ -19,9 +19,17 @@ import { compressImage, extractTextOnDevice } from "../utils/imageOptimizer";
 import Md from "./Md";
 import { useSpeechToText, useTextToSpeech } from "../hooks/useSpeech";
 
-function TutorMessageItem({ message }) {
+const TutorMessageItem = React.memo(function TutorMessageItem({ message }) {
   const isUser = message.sender === "user";
   const { isSpeaking, toggle: toggleTTS } = useTextToSpeech(message.id);
+  const isStreaming = Boolean(message.isStreaming);
+
+  const isAutoPrompt =
+    !message.content ||
+    message.content === "Please solve this question or problem step-by-step." ||
+    message.content === "Please solve this question." ||
+    message.content === "Analyzing image question..." ||
+    message.content === "Reviewing question image...";
 
   return (
     <div
@@ -38,19 +46,21 @@ function TutorMessageItem({ message }) {
             <span>Academic Coach</span>
           </div>
           {/* Built-in Text-to-Speech button (Always visible on Desktop & Mobile) */}
-          <button
-            type="button"
-            onClick={() => toggleTTS(message.content)}
-            title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
-            className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-lg font-medium transition-all cursor-pointer ${
-              isSpeaking
-                ? "text-purple-200 bg-purple-900/60 border border-purple-700/60 shadow-sm animate-pulse"
-                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
-            }`}
-          >
-            {isSpeaking ? <VolumeX size={13} className="text-purple-400" /> : <Volume2 size={13} />}
-            <span>{isSpeaking ? "Stop" : "Read"}</span>
-          </button>
+          {!isStreaming && (
+            <button
+              type="button"
+              onClick={() => toggleTTS(message.content)}
+              title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-lg font-medium transition-all cursor-pointer ${
+                isSpeaking
+                  ? "text-purple-200 bg-purple-900/60 border border-purple-700/60 shadow-sm animate-pulse"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
+              }`}
+            >
+              {isSpeaking ? <VolumeX size={13} className="text-purple-400" /> : <Volume2 size={13} />}
+              <span>{isSpeaking ? "Stop" : "Read"}</span>
+            </button>
+          )}
         </div>
       )}
       {message.image_path && (
@@ -61,13 +71,27 @@ function TutorMessageItem({ message }) {
         />
       )}
       {isUser ? (
-        <div className="whitespace-pre-wrap">{message.content}</div>
+        !isAutoPrompt && <div className="whitespace-pre-wrap">{message.content}</div>
+      ) : isStreaming && !message.content ? (
+        <div className="flex items-center gap-2 text-purple-300 text-xs py-1">
+          <Loader2 size={13} className="animate-spin text-purple-400" />
+          <span>Coach is thinking...</span>
+        </div>
+      ) : !message.content ? (
+        <div className="text-slate-400 italic text-xs py-1">
+          No response generated. Please try again.
+        </div>
       ) : (
-        <Md>{message.content}</Md>
+        <div className="relative">
+          <Md>{message.content}</Md>
+          {isStreaming && (
+            <span className="inline-block w-1.5 h-4 ml-1 bg-purple-400 animate-pulse rounded-sm align-middle" />
+          )}
+        </div>
       )}
     </div>
   );
-}
+});
 
 export default function TutorWorkspace({
   activeId,
@@ -158,7 +182,7 @@ export default function TutorWorkspace({
     setLoading(true);
     setLoadingStatus("Consulting academic profile…");
 
-    // Optimistic user message
+    // Optimistic user and AI messages for instantaneous feedback
     const tempId = Date.now();
     const localImg = userFile ? URL.createObjectURL(userFile) : null;
     const optUser = {
@@ -171,36 +195,65 @@ export default function TutorWorkspace({
       created_at: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, optUser]);
+    const optAi = {
+      id: tempId + 1,
+      chat_id: targetSessionId,
+      sender: "ai",
+      mode: "tutor",
+      content: "",
+      isStreaming: true,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, optUser, optAi]);
 
     let processedFile = userFile;
     let clientOcrText = "";
 
-    // On-device image compression + OCR before sending
+    // On-device image compression (~20ms)
     if (userFile && userFile.type.startsWith("image/")) {
       try {
-        setLoadingStatus("Optimizing image on device…");
-        processedFile = await compressImage(userFile, 1400, 0.82);
+        processedFile = await compressImage(userFile, 1200, 0.8);
       } catch {}
-      try {
-        setLoadingStatus("Scanning text locally…");
-        clientOcrText = await extractTextOnDevice(processedFile, (s) =>
-          setLoadingStatus(s)
-        );
-      } catch {}
+
+      const localSettings = api.getSettingsSync();
+      if (localSettings?.provider === "ollama") {
+        try {
+          setLoadingStatus("Scanning text locally…");
+          clientOcrText = await extractTextOnDevice(processedFile, (s) =>
+            setLoadingStatus(s)
+          );
+        } catch {}
+      }
     }
+
+    const onChunk = (streamed) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId + 1 ? { ...m, content: streamed } : m
+        )
+      );
+    };
 
     try {
       setLoadingStatus("Coach is thinking…");
-      const result = await api.send(targetSessionId, text, "tutor", processedFile, clientOcrText, subjectFilter);
+      const result = await api.send(
+        targetSessionId,
+        text,
+        "tutor",
+        processedFile,
+        clientOcrText,
+        subjectFilter,
+        onChunk
+      );
       setMessages((prev) => {
-        const filtered = prev.filter((m) => m.id !== tempId);
+        const filtered = prev.filter((m) => m.id !== tempId && m.id !== tempId + 1);
         return [...filtered, result.user, result.ai];
       });
       if (onRefreshChats) await onRefreshChats(targetSessionId);
     } catch (err) {
       alert("Tutor error: " + err.message);
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setMessages((prev) => prev.filter((m) => m.id !== tempId && m.id !== tempId + 1));
     } finally {
       setLoading(false);
       setLoadingStatus("");

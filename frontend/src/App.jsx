@@ -362,29 +362,49 @@ export default function App() {
         created_at: new Date().toISOString(),
       };
 
-      setMessages((prev) => [...prev, optimisticUserMsg]);
+      const tempAiMsgId = tempUserMsgId + 1;
+      const optimisticAiMsg = {
+        id: tempAiMsgId,
+        sender: "ai",
+        mode,
+        content: "",
+        isStreaming: true,
+        created_at: new Date().toISOString(),
+      };
 
-      // Step 1: On-Device Image Compression
+      setMessages((prev) => [...prev, optimisticUserMsg, optimisticAiMsg]);
+
+      // Step 1: On-Device Fast Image Compression (~20ms)
       if (file && file.type.startsWith("image/")) {
         try {
-          setLoadingStatus("Optimizing image on device…");
-          processedFile = await compressImage(file, 1400, 0.82);
+          processedFile = await compressImage(file, 1200, 0.8);
         } catch (compressionError) {
           console.warn("Image compression skipped:", compressionError);
         }
 
-        // Step 2: On-Device Fast OCR
-        try {
-          setLoadingStatus("Scanning text locally…");
-          clientOcrText = await extractTextOnDevice(processedFile, (status) =>
-            setLoadingStatus(status)
-          );
-        } catch (ocrError) {
-          console.warn("Client OCR fallback:", ocrError);
+        // Only run slow client OCR if using a text-only local model like Ollama
+        const currentProvider = settings?.provider || "gemini";
+        if (currentProvider === "ollama") {
+          try {
+            setLoadingStatus("Scanning text locally…");
+            clientOcrText = await extractTextOnDevice(processedFile, (status) =>
+              setLoadingStatus(status)
+            );
+          } catch (ocrError) {
+            console.warn("Client OCR fallback:", ocrError);
+          }
         }
       }
 
       setLoadingStatus("Thinking…");
+
+      const onChunk = (streamedText) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempAiMsgId ? { ...m, content: streamedText } : m
+          )
+        );
+      };
 
       try {
         const result = await api.send(
@@ -392,12 +412,16 @@ export default function App() {
           content,
           mode,
           processedFile,
-          clientOcrText
+          clientOcrText,
+          null,
+          onChunk
         );
 
-        // Replace optimistic message and append real AI response
+        // Replace optimistic messages with permanent saved messages
         setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempUserMsgId);
+          const filtered = prev.filter(
+            (m) => m.id !== tempUserMsgId && m.id !== tempAiMsgId
+          );
           const next = [...filtered, result.user, result.ai];
           messagesCacheRef.current.set(chatId, next);
           return next;
@@ -406,8 +430,10 @@ export default function App() {
         await refreshChats(chatId);
       } catch (requestError) {
         setError(requestError.message);
-        // Remove optimistic message on failure
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserMsgId));
+        // Remove optimistic messages on failure
+        setMessages((prev) =>
+          prev.filter((m) => m.id !== tempUserMsgId && m.id !== tempAiMsgId)
+        );
       } finally {
         setLoading(false);
         setLoadingStatus("");
@@ -416,7 +442,7 @@ export default function App() {
         }
       }
     },
-    [mode, newChat, refreshChats]
+    [mode, newChat, refreshChats, settings?.provider]
   );
 
   const saveSettings = useCallback(async (value) => {
@@ -424,6 +450,7 @@ export default function App() {
       const saved = await api.saveSettings(value);
       setSettings(saved);
       if (saved.default_mode) setMode(saved.default_mode);
+      setModal(null);
     } catch (requestError) {
       alert(requestError.message);
     }

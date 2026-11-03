@@ -18,7 +18,7 @@ async def extract_text_stateless(
     Extracts text and immediately returns it to the user's device.
     Does NOT store any file or database row on Render's ephemeral disk.
     """
-    from routers.chats import resolve_effective_settings
+    from core import resolve_effective_settings
     settings = resolve_effective_settings(db, request)
     path = save_upload(file)
     try:
