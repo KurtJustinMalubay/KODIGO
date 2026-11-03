@@ -337,16 +337,16 @@ export default function Sidebar({
             </div>
 
             {/* Settings footer — always visible at the bottom of the sidebar */}
-            <div className="shrink-0 px-2 py-2 border-t border-slate-800/60">
+            <div className="shrink-0 p-3 border-t border-slate-800 bg-slate-900/90">
               <button
                 type="button"
                 onClick={() => {
                   if (onSettings) onSettings();
                   if (onClose) onClose();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer text-sm font-medium"
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/50 transition-all cursor-pointer text-sm font-semibold shadow-sm"
               >
-                <Settings size={16} className="shrink-0" />
+                <Settings size={18} className="text-indigo-400 shrink-0" />
                 <span>Settings</span>
               </button>
             </div>

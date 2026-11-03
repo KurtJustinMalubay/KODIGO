@@ -39,10 +39,10 @@ export default function Header({ onToggle, settings, onModal }) {
 
       {/* Model & Tier Badge */}
       {settings && (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 min-w-0 shrink">
           <span
             title={`Active AI: ${modelDisplay} (${isFreeTier ? "Free Tier" : "Custom Key"})`}
-            className={`text-[11px] font-medium rounded-full px-2.5 py-1 flex items-center gap-1.5 max-w-[130px] sm:max-w-[220px] truncate ${
+            className={`text-[11px] font-medium rounded-full px-2 py-0.5 flex items-center gap-1 truncate ${
               isFreeTier
                 ? "bg-emerald-950/70 text-emerald-300 border border-emerald-800/50"
                 : "bg-indigo-950/70 text-indigo-300 border border-indigo-800/50"
@@ -58,10 +58,10 @@ export default function Header({ onToggle, settings, onModal }) {
         </div>
       )}
 
-      <div className="flex-1 min-w-0" />
+      <div className="flex-1 min-w-2" />
 
-      {/* Action Buttons: on mobile icon-only with minimum 40px touch area; on desktop shows label */}
-      <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+      {/* Action Buttons */}
+      <div className="flex items-center gap-0.5 shrink-0">
         <button
           type="button"
           onClick={() => onModal("academic")}
@@ -76,7 +76,7 @@ export default function Header({ onToggle, settings, onModal }) {
           type="button"
           onClick={() => onModal("univ")}
           title="Universal References & Notes"
-          className="w-9 h-9 sm:w-auto sm:h-9 flex items-center justify-center gap-1.5 px-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 active:bg-slate-800 transition-colors cursor-pointer"
+          className="hidden xs:flex sm:flex w-9 h-9 sm:w-auto sm:h-9 items-center justify-center gap-1.5 px-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 active:bg-slate-800 transition-colors cursor-pointer"
         >
           <Globe size={16} className="text-cyan-400 shrink-0" />
           <span className="hidden lg:inline text-xs font-medium">Univ. Refs</span>
@@ -86,7 +86,7 @@ export default function Header({ onToggle, settings, onModal }) {
           type="button"
           onClick={() => onModal("chat")}
           title="Chat References"
-          className="w-9 h-9 sm:w-auto sm:h-9 flex items-center justify-center gap-1.5 px-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 active:bg-slate-800 transition-colors cursor-pointer"
+          className="hidden xs:flex sm:flex w-9 h-9 sm:w-auto sm:h-9 items-center justify-center gap-1.5 px-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 active:bg-slate-800 transition-colors cursor-pointer"
         >
           <BookOpen size={16} className="text-indigo-400 shrink-0" />
           <span className="hidden lg:inline text-xs font-medium">Chat Refs</span>

@@ -1,5 +1,5 @@
 @tailwind base; @tailwind components; @tailwind utilities;
-html, body, #root { height: 100%; overflow-x: hidden; }
+html, body, #root { height: 100%; width: 100%; }
 .prose-k p { margin: .4rem 0; } .prose-k ol { list-style: decimal; padding-left: 1.4rem; }
 .prose-k ul { list-style: disc; padding-left: 1.4rem; } .prose-k code { background:#1e293b; padding:0 .25rem; border-radius:.25rem; }
 .prose-k pre { background:#0f172a; padding:.75rem; border-radius:.5rem; overflow-x:auto; }
