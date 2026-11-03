@@ -1,9 +1,36 @@
 import { localDB } from "./db";
 import { extractTextOnDevice } from "./utils/imageOptimizer";
 
-export const API_BASE = (
-  import.meta.env.VITE_API_URL || "https://kodigo-backend.onrender.com"
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:8000"
 ).replace(/\/$/, "");
+
+export const API_BASE = API_BASE_URL;
+
+export async function sendChatMessage(prompt, customApiKey = null) {
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (customApiKey) {
+    headers["X-Custom-API-Key"] = customApiKey;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/chat`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ message: prompt }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to communicate with API.");
+  }
+
+  return await response.json();
+}
 
 const SETTINGS_KEY = "kodigo_device_settings";
 
@@ -80,8 +107,10 @@ async function req(path, opts = {}) {
     // Only send custom key if in custom mode or if user has entered one and not in free mode
     if (local.key_mode === "custom" && local.cloud_api_key) {
       headers["x-cloud-api-key"] = local.cloud_api_key;
+      headers["x-custom-api-key"] = local.cloud_api_key;
     } else if (local.key_mode !== "free" && local.cloud_api_key) {
       headers["x-cloud-api-key"] = local.cloud_api_key;
+      headers["x-custom-api-key"] = local.cloud_api_key;
     }
     if (local.provider) headers["x-ai-provider"] = local.provider;
     if (local.model_name) headers["x-model-name"] = local.model_name;
