@@ -230,9 +230,12 @@ async function callGemini(apiKey, modelName, systemInstruction, contentsPayload,
   const body = {
     contents,
     generationConfig: {
-      temperature: 0.4,
+      temperature: 0.3,
       maxOutputTokens: maxOutputTokens,
-      topP: 0.95,
+      topP: 0.8,
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
     },
   };
 
