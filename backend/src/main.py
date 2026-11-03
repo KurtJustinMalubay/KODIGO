@@ -18,6 +18,7 @@ app = FastAPI(title="KODIGO Backend", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://kodigo.pages.dev",
         "https://kodigo-frontend.pages.dev",
         "http://localhost:5173",
         "http://localhost:3000",
@@ -143,6 +144,27 @@ async def generate_gemini(
                 return candidates[0]["content"]["parts"][0]["text"]
             raise RuntimeError("Gemini returned an empty candidate list.")
     except Exception as http_err:
+        # Attempt 3: Standard library urllib.request (Pyodide native JS fetch bridge)
+        try:
+            import urllib.request
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
+            parts = [{"text": contents}] if isinstance(contents, str) else [{"text": str(c)} for c in contents]
+            body = {"contents": [{"role": "user", "parts": parts}]}
+            if system_instruction:
+                body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates", [])
+                if candidates and "content" in candidates[0]:
+                    return candidates[0]["content"]["parts"][0]["text"]
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=f"Gemini API error: {http_err}")
 
 # ── Phase 1: ChatRequest Endpoint (Template requirement) ─────────────────────
@@ -346,4 +368,9 @@ async def extract_text_endpoint(file: UploadFile = File(...)):
 # ── Cloudflare Workers ASGI Entrypoint ────────────────────────────────────────
 if asgi is not None:
     Default = asgi.entrypoint(app)
+    default = Default
     entrypoint = Default
+else:
+    Default = app
+    default = app
+    entrypoint = app
