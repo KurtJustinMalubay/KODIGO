@@ -10,8 +10,8 @@ export default function SetupWizard({ savedSettings, onComplete }) {
         : savedSettings.provider || "gemini",
     model_name:
       savedSettings.provider === "ollama"
-        ? "gemini-3.8-flash"
-        : savedSettings.model_name || "gemini-3.8-flash",
+        ? "gemini-3.5-flash-lite"
+        : savedSettings.model_name || "gemini-3.5-flash-lite",
     ollama_url: savedSettings.ollama_url || "http://localhost:11434",
     cloud_api_key: savedSettings.cloud_api_key || "",
     key_mode:
@@ -39,7 +39,7 @@ export default function SetupWizard({ savedSettings, onComplete }) {
         connection === "offline"
           ? "llama3"
           : current.provider === "ollama"
-          ? "gemini-3.8-flash"
+          ? "gemini-3.5-flash-lite"
           : current.model_name,
     }));
   };
@@ -51,7 +51,7 @@ export default function SetupWizard({ savedSettings, onComplete }) {
       !settings.cloud_api_key &&
       !settings.has_key
     ) {
-      setError("Enter your API key to use a custom key, or switch to Free Tier.");
+      setError("Enter your API key or switch to Free Tier.");
       return;
     }
     if (!settings.model_name.trim()) {
@@ -69,47 +69,53 @@ export default function SetupWizard({ savedSettings, onComplete }) {
   };
 
   return (
-    <Modal title="Welcome to KODIGO — set up your AI" onClose={() => {}} dismissible={false}>
-      <p className="text-sm text-slate-400 mb-4">
-        Choose where KODIGO should run its AI model. Gemini offers a generous free tier for Google AI Studio keys.
-      </p>
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        {[
-          { value: "online", title: "Online", detail: "Use Gemini or OpenAI cloud" },
-          { value: "offline", title: "Offline", detail: "Use Ollama on this device" },
-        ].map((choice) => {
-          const selected =
-            choice.value === (settings.provider === "ollama" ? "offline" : "online");
-          return (
-            <button
-              key={choice.value}
-              type="button"
-              onClick={() => chooseConnection(choice.value)}
-              className={`text-left rounded-xl border p-3 ${
-                selected
-                  ? "border-indigo-500 bg-indigo-950/50"
-                  : "border-slate-700 bg-slate-800"
-              }`}
-            >
-              <span className="block text-sm font-medium">{choice.title}</span>
-              <span className="block text-xs text-slate-400 mt-1">{choice.detail}</span>
-            </button>
-          );
-        })}
+    <Modal title="AI Setup" onClose={() => {}} dismissible={false}>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-2.5">
+          {[
+            { value: "online", title: "Online", detail: "Gemini / OpenAI" },
+            { value: "offline", title: "Offline", detail: "Local Ollama" },
+          ].map((choice) => {
+            const selected =
+              choice.value === (settings.provider === "ollama" ? "offline" : "online");
+            return (
+              <button
+                key={choice.value}
+                type="button"
+                onClick={() => chooseConnection(choice.value)}
+                className={`text-left rounded-xl border p-3 min-h-[56px] transition-all cursor-pointer ${
+                  selected
+                    ? "border-indigo-500 bg-indigo-950/60 shadow-sm"
+                    : "border-slate-800 bg-slate-900/60 hover:bg-slate-800/80"
+                }`}
+              >
+                <span className="block text-sm font-semibold text-slate-100">{choice.title}</span>
+                <span className="block text-[11px] text-slate-400 mt-0.5">{choice.detail}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="py-1">
+          <SettingsFields
+            settings={settings}
+            setSettings={setSettings}
+            connectionMode={settings.provider === "ollama" ? "offline" : "online"}
+          />
+        </div>
+
+        {error && <p role="alert" className="text-xs text-red-400 font-medium">{error}</p>}
+
+        <div className="pt-2 border-t border-slate-800/80">
+          <button
+            disabled={saving}
+            onClick={save}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 font-semibold text-white rounded-xl px-4 py-3 text-sm shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-colors cursor-pointer"
+          >
+            {saving ? "Saving…" : "Finish Setup"}
+          </button>
+        </div>
       </div>
-      <SettingsFields
-        settings={settings}
-        setSettings={setSettings}
-        connectionMode={settings.provider === "ollama" ? "offline" : "online"}
-      />
-      {error && <p role="alert" className="text-sm text-red-300 mb-3">{error}</p>}
-      <button
-        disabled={saving}
-        onClick={save}
-        className="bg-indigo-600 hover:bg-indigo-500 rounded-lg px-4 py-2 text-sm w-full disabled:opacity-50 transition-colors"
-      >
-        {saving ? "Saving…" : "Finish setup"}
-      </button>
     </Modal>
   );
 }

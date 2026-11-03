@@ -10,11 +10,11 @@ export default function Modal({ title, onClose, children, dismissible = true }) 
       onClick={dismissible ? onClose : undefined}
     >
       <div
-        className="bg-slate-900 border border-slate-800 text-slate-100 w-full rounded-t-3xl sm:rounded-2xl sm:max-w-lg sm:mx-auto max-h-[92vh] overflow-y-auto p-5 sm:p-5 shadow-2xl flex flex-col"
+        className="bg-slate-900 border border-slate-800 text-slate-100 w-full rounded-t-3xl sm:rounded-2xl sm:max-w-lg sm:mx-auto max-h-[92vh] flex flex-col p-5 sm:p-5 shadow-2xl overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Drag handle — mobile only */}
-        <div className="sm:hidden flex justify-center mb-3 -mt-1">
+        <div className="sm:hidden flex justify-center mb-3 -mt-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-slate-700" />
         </div>
 
@@ -33,7 +33,7 @@ export default function Modal({ title, onClose, children, dismissible = true }) 
             </button>
           )}
         </div>
-        <div className="flex-1 min-h-0">{children}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto pr-0.5">{children}</div>
       </div>
     </div>
   );

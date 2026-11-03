@@ -132,14 +132,27 @@ export default function Sidebar({
                   KODIGO MENU
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Close menu"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onSettings) onSettings();
+                    if (onClose) onClose();
+                  }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Settings"
+                >
+                  <Settings size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Close menu"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
           )}
 
