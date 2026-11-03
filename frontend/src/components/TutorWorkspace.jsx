@@ -325,8 +325,8 @@ export default function TutorWorkspace({
                 key={m.id}
                 className={
                   isUser
-                    ? "self-end max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-4 py-2.5 text-sm shadow-sm"
-                    : "border-l-4 border-purple-500 bg-slate-900 rounded-r-xl px-4 py-3 max-w-[90%] text-slate-100 shadow-sm"
+                    ? "self-end max-w-[92%] sm:max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-3.5 sm:px-4 py-2.5 text-sm shadow-sm leading-relaxed"
+                    : "border-l-4 border-purple-500 bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed"
                 }
               >
                 {!isUser && (
@@ -365,7 +365,7 @@ export default function TutorWorkspace({
       </div>
 
       {/* Input Bar for Tutor */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950">
+      <div className="px-3 sm:px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-950/95 backdrop-blur-md shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();

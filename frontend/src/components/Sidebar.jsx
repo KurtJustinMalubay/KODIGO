@@ -117,6 +117,30 @@ export default function Sidebar({
 
         {/* Top Action Bar */}
         <div className={`p-2.5 flex flex-col gap-2 ${open ? "" : "items-center"}`}>
+          {/* Mobile Header: Visible only on small screens when sidebar is open */}
+          {open && (
+            <div className="flex items-center justify-between px-1 pb-1 md:hidden border-b border-slate-800/60">
+              <div className="flex items-center gap-2">
+                <img
+                  src="/kodigo.png"
+                  alt="KODIGO"
+                  className="w-6 h-6 rounded-md object-contain"
+                />
+                <span className="font-bold tracking-wider text-xs text-slate-200">
+                  KODIGO MENU
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Close menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
           {!open && (
             <div className="hidden md:flex flex-col items-center gap-1.5 py-1">
               <img

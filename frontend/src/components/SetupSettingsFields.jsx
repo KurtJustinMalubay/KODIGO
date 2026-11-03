@@ -43,11 +43,21 @@ export default function SetupSettingsFields({
     setModelsBusy(true);
     setModelsError("");
     try {
+      const isFree =
+        settings.provider === "gemini" &&
+        (settings.key_mode === "free" || (!settings.key_mode && !settings.cloud_api_key));
+
       const activeKey =
-        keyOverride !== null ? keyOverride : (settings.cloud_api_key || "");
+        keyOverride !== null
+          ? keyOverride
+          : isFree
+          ? ""
+          : settings.cloud_api_key || "";
+
       const result = await api.models({
         provider: settings.provider,
         cloud_api_key: activeKey,
+        key_mode: isFree ? "free" : "custom",
         ollama_url: settings.ollama_url,
       });
 
@@ -139,88 +149,144 @@ export default function SetupSettingsFields({
           </div>
         </Field>
       ) : (
-        <Field
-          label={`${settings.provider === "gemini" ? "Google AI Studio" : "OpenAI"} API Key`}
-          hint="Your API key is saved strictly on this device's browser and is never stored in the shared database."
-        >
-          <div className="flex gap-2">
-            <input
-              className={`${inputClass} min-w-0 flex-1`}
-              type="password"
-              autoComplete="new-password"
-              value={settings.cloud_api_key || ""}
-              onChange={set("cloud_api_key")}
-              placeholder={
-                settings.cloud_api_key
-                  ? "•••••••• (Saved on this device)"
-                  : `Paste your ${settings.provider === "gemini" ? "Gemini (AIzaSy...)" : "OpenAI (sk-...)"} key`
-              }
-            />
-            <button
-              type="button"
-              onClick={() => loadModels(settings.cloud_api_key)}
-              disabled={modelsBusy}
-              className="shrink-0 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3 text-xs disabled:opacity-50 transition-colors flex items-center gap-1.5"
-            >
-              {modelsBusy ? (
-                <>
-                  <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
-                  <span>Checking…</span>
-                </>
-              ) : (
-                <span>Check Models</span>
+        <div className="space-y-3 mb-3.5">
+          {/* Free Tier vs Custom API Key Option (for Gemini) */}
+          {settings.provider === "gemini" && (
+            <div>
+              <span className="block text-xs font-medium text-slate-300 mb-1.5">
+                Gemini Access Mode
+              </span>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettings((s) => ({ ...s, key_mode: "free" }));
+                    loadModels("");
+                  }}
+                  className={`flex flex-col items-center justify-center p-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    (settings.key_mode || "free") === "free"
+                      ? "bg-emerald-600 text-white shadow-sm font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                  }`}
+                >
+                  <span>Free Tier (Default)</span>
+                  <span className="text-[10px] opacity-80 font-normal">Use built-in server key</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettings((s) => ({ ...s, key_mode: "custom" }));
+                    if (settings.cloud_api_key) loadModels(settings.cloud_api_key);
+                  }}
+                  className={`flex flex-col items-center justify-center p-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    settings.key_mode === "custom"
+                      ? "bg-indigo-600 text-white shadow-sm font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                  }`}
+                >
+                  <span>Custom API Key</span>
+                  <span className="text-[10px] opacity-80 font-normal">Enter your own key</span>
+                </button>
+              </div>
+
+              {(settings.key_mode || "free") === "free" && (
+                <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2">
+                  <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
+                  <div className="leading-relaxed">
+                    <strong>Free Tier Active!</strong> Powered by the shared built-in test key set up on Render. No personal key, credit card, or setup needed.
+                  </div>
+                </div>
               )}
-            </button>
-          </div>
+            </div>
+          )}
 
-          {/* Direct link to get key */}
-          <div className="mt-2 flex items-center justify-between text-[11px]">
-            {settings.provider === "gemini" ? (
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 font-medium"
-              >
-                <span>Get free Gemini API key on Google AI Studio</span>
-                <span>↗</span>
-              </a>
-            ) : settings.provider === "openai" ? (
-              <a
-                href="https://platform.openai.com/api-keys"
-                target="_blank"
-                rel="noreferrer"
-                className="text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 font-medium"
-              >
-                <span>Get OpenAI API key on platform.openai.com</span>
-                <span>↗</span>
-              </a>
-            ) : null}
-          </div>
-
-          {/* Key status feedback */}
-          {modelsStatus.message && (
-            <div
-              className={`mt-2 p-2.5 rounded-lg text-xs flex items-center gap-2 ${
-                modelsStatus.verified
-                  ? "bg-emerald-950/40 border border-emerald-500/40 text-emerald-300"
-                  : "bg-slate-800/80 border border-slate-700 text-slate-300"
-              }`}
+          {/* Custom API Key input (shown for OpenAI or when Gemini Custom Key is chosen) */}
+          {(settings.provider === "openai" || settings.key_mode === "custom") && (
+            <Field
+              label={`${settings.provider === "gemini" ? "Google AI Studio" : "OpenAI"} API Key`}
+              hint="Your API key is saved strictly on this device's browser and is never stored in the shared database."
             >
-              <span>{modelsStatus.verified ? "✓" : "ℹ"}</span>
-              <span className="flex-1">{modelsStatus.message}</span>
-            </div>
-          )}
+              <div className="flex gap-2">
+                <input
+                  className={`${inputClass} min-w-0 flex-1`}
+                  type="password"
+                  autoComplete="new-password"
+                  value={settings.cloud_api_key || ""}
+                  onChange={set("cloud_api_key")}
+                  placeholder={
+                    settings.cloud_api_key
+                      ? "•••••••• (Saved on this device)"
+                      : `Paste your ${settings.provider === "gemini" ? "Gemini (AIzaSy...)" : "OpenAI (sk-...)"} key`
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => loadModels(settings.cloud_api_key)}
+                  disabled={modelsBusy}
+                  className="shrink-0 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3 text-xs disabled:opacity-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  {modelsBusy ? (
+                    <>
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                      <span>Checking…</span>
+                    </>
+                  ) : (
+                    <span>Check Models</span>
+                  )}
+                </button>
+              </div>
 
-          {modelsError && (
-            <div className="mt-2 p-2.5 rounded-lg bg-red-950/50 border border-red-500/50 text-xs text-red-200">
-              <p className="font-semibold flex items-center gap-1.5">
-                <span>❌ Verification Failed:</span>
-              </p>
-              <p className="mt-0.5 text-red-300 leading-relaxed">{modelsError}</p>
-            </div>
+              {/* Direct link to get key */}
+              <div className="mt-2 flex items-center justify-between text-[11px]">
+                {settings.provider === "gemini" ? (
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 font-medium"
+                  >
+                    <span>Get free Gemini API key on Google AI Studio</span>
+                    <span>↗</span>
+                  </a>
+                ) : settings.provider === "openai" ? (
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-indigo-400 hover:text-indigo-300 underline inline-flex items-center gap-1 font-medium"
+                  >
+                    <span>Get OpenAI API key on platform.openai.com</span>
+                    <span>↗</span>
+                  </a>
+                ) : null}
+              </div>
+
+              {/* Key status feedback */}
+              {modelsStatus.message && (
+                <div
+                  className={`mt-2 p-2.5 rounded-lg text-xs flex items-center gap-2 ${
+                    modelsStatus.verified
+                      ? "bg-emerald-950/40 border border-emerald-500/40 text-emerald-300"
+                      : "bg-slate-800/80 border border-slate-700 text-slate-300"
+                  }`}
+                >
+                  <span>{modelsStatus.verified ? "✓" : "ℹ"}</span>
+                  <span className="flex-1">{modelsStatus.message}</span>
+                </div>
+              )}
+
+              {modelsError && (
+                <div className="mt-2 p-2.5 rounded-lg bg-red-950/50 border border-red-500/50 text-xs text-red-200">
+                  <p className="font-semibold flex items-center gap-1.5">
+                    <span>❌ Verification Failed:</span>
+                  </p>
+                  <p className="mt-0.5 text-red-300 leading-relaxed">{modelsError}</p>
+                </div>
+              )}
+            </Field>
           )}
-        </Field>
+        </div>
       )}
 
       <Field label="Model Selection">

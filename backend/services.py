@@ -171,6 +171,10 @@ class OpenAI(AIProvider):
 
 class Gemini(AIProvider):
     async def chat(self, system, msgs):
+        if not self.s.cloud_api_key:
+            raise RuntimeError(
+                "No Gemini API key configured. Either select 'Free Tier' in Settings (if server GEMINI_API_KEY is set) or enter your own Google AI Studio API key."
+            )
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.s.model_name}:generateContent"
         body = {
             "systemInstruction": {"parts": [{"text": system}]},

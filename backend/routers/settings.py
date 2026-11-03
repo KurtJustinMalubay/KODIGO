@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,8 @@ def public_settings(settings):
     )
     result["has_key"] = bool(settings.cloud_api_key)
     result["has_ocr_key"] = bool(settings.ocr_api_key)
+    result["server_has_gemini_key"] = bool(os.environ.get("GEMINI_API_KEY"))
+    result["server_has_openai_key"] = bool(os.environ.get("OPENAI_API_KEY"))
     return result
 
 
@@ -54,12 +57,29 @@ async def available_models(body: dict = Body(...), db: Session = Depends(get_db)
     if provider not in AI_PROVIDERS:
         raise HTTPException(400, "Unsupported AI provider.")
     try:
+        api_key = (body.get("cloud_api_key") or settings.cloud_api_key or "").strip()
+        is_using_server_fallback = False
+        if not api_key:
+            if provider == "gemini" and os.environ.get("GEMINI_API_KEY"):
+                api_key = os.environ.get("GEMINI_API_KEY").strip()
+                is_using_server_fallback = True
+            elif provider == "openai" and os.environ.get("OPENAI_API_KEY"):
+                api_key = os.environ.get("OPENAI_API_KEY").strip()
+                is_using_server_fallback = True
+
         result = await list_models(
             provider,
-            body.get("cloud_api_key") or settings.cloud_api_key,
+            api_key,
             body.get("ollama_url") or settings.ollama_url,
         )
         if isinstance(result, dict):
+            if is_using_server_fallback:
+                result["is_server_key"] = True
+                result["message"] = (
+                    "✓ Free Tier active! Using built-in server Gemini key."
+                    if result.get("verified")
+                    else result.get("message")
+                )
             return result
         return {"models": result, "verified": True, "message": ""}
     except ValueError as error:

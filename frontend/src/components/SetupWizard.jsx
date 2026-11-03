@@ -13,7 +13,10 @@ export default function SetupWizard({ savedSettings, onComplete }) {
         ? "gemini-2.0-flash"
         : savedSettings.model_name || "gemini-2.0-flash",
     ollama_url: savedSettings.ollama_url || "http://localhost:11434",
-    cloud_api_key: "",
+    cloud_api_key: savedSettings.cloud_api_key || "",
+    key_mode:
+      savedSettings.key_mode ||
+      (savedSettings.cloud_api_key ? "custom" : "free"),
     ocr_provider: savedSettings.ocr_provider || "paddleocr",
     ocr_api_key: "",
     default_mode: savedSettings.default_mode || "quiz",
@@ -42,8 +45,13 @@ export default function SetupWizard({ savedSettings, onComplete }) {
   };
 
   const save = async () => {
-    if (settings.provider !== "ollama" && !settings.cloud_api_key && !settings.has_key) {
-      setError("Enter an API key to use an online AI model.");
+    if (
+      settings.provider !== "ollama" &&
+      settings.key_mode === "custom" &&
+      !settings.cloud_api_key &&
+      !settings.has_key
+    ) {
+      setError("Enter your API key to use a custom key, or switch to Free Tier.");
       return;
     }
     if (!settings.model_name.trim()) {
