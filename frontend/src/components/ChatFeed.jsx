@@ -7,10 +7,13 @@ import {
   MessageSquare,
   Minimize2,
   Sparkles,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { api, resolveUrl } from "../api";
 import Md from "./Md";
+import { useTextToSpeech } from "../hooks/useSpeech";
 
 function AiMessage({ message, showTimestamps }) {
   const [explanations, setExplanations] = useState(
@@ -19,6 +22,7 @@ function AiMessage({ message, showTimestamps }) {
   const [minimized, setMinimized] = useState({});
   const [maximizedKey, setMaximizedKey] = useState(null);
   const [busy, setBusy] = useState(null);
+  const { isSpeaking, toggle: toggleTTS } = useTextToSpeech(message.id);
 
   const items =
     message.mode === "quiz"
@@ -74,11 +78,27 @@ function AiMessage({ message, showTimestamps }) {
       >
         <Md>{message.content}</Md>
 
-        {showTimestamps && timeFormatted && (
-          <div className="text-[10px] text-slate-500 text-right mt-1 opacity-70">
-            {timeFormatted}
-          </div>
-        )}
+        {/* TTS Read Aloud + Timestamp row (Always visible on Desktop & Mobile) */}
+        <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-800/60">
+          <button
+            type="button"
+            onClick={() => toggleTTS(message.content)}
+            title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
+            className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+              isSpeaking
+                ? "text-indigo-200 bg-indigo-900/60 border border-indigo-700/60 shadow-sm animate-pulse"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
+            }`}
+          >
+            {isSpeaking ? <VolumeX size={14} className="text-indigo-400" /> : <Volume2 size={14} />}
+            <span>{isSpeaking ? "Stop" : "Read"}</span>
+          </button>
+          {showTimestamps && timeFormatted && (
+            <div className="text-[10px] text-slate-500 text-right opacity-70 ml-auto">
+              {timeFormatted}
+            </div>
+          )}
+        </div>
 
         {items.length > 0 && (
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3 pt-2.5 border-t border-slate-800/80">

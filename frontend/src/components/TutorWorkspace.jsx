@@ -5,14 +5,69 @@ import {
   BookOpen,
   GraduationCap,
   Loader2,
+  Mic,
+  MicOff,
   Send,
   Sparkles,
   Trash2,
   Upload,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { api, resolveUrl } from "../api";
 import { compressImage, extractTextOnDevice } from "../utils/imageOptimizer";
 import Md from "./Md";
+import { useSpeechToText, useTextToSpeech } from "../hooks/useSpeech";
+
+function TutorMessageItem({ message }) {
+  const isUser = message.sender === "user";
+  const { isSpeaking, toggle: toggleTTS } = useTextToSpeech(message.id);
+
+  return (
+    <div
+      className={
+        isUser
+          ? "self-end max-w-[92%] sm:max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-3.5 sm:px-4 py-2.5 text-sm shadow-sm leading-relaxed"
+          : "border-l-4 border-purple-500 bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed"
+      }
+    >
+      {!isUser && (
+        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-800">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-300">
+            <GraduationCap size={14} className="text-purple-400" />
+            <span>Academic Coach</span>
+          </div>
+          {/* Built-in Text-to-Speech button (Always visible on Desktop & Mobile) */}
+          <button
+            type="button"
+            onClick={() => toggleTTS(message.content)}
+            title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
+            className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-lg font-medium transition-all cursor-pointer ${
+              isSpeaking
+                ? "text-purple-200 bg-purple-900/60 border border-purple-700/60 shadow-sm animate-pulse"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
+            }`}
+          >
+            {isSpeaking ? <VolumeX size={13} className="text-purple-400" /> : <Volume2 size={13} />}
+            <span>{isSpeaking ? "Stop" : "Read"}</span>
+          </button>
+        </div>
+      )}
+      {message.image_path && (
+        <img
+          src={resolveUrl(message.image_path)}
+          alt="Problem upload"
+          className="rounded-lg mb-2 max-h-60"
+        />
+      )}
+      {isUser ? (
+        <div className="whitespace-pre-wrap">{message.content}</div>
+      ) : (
+        <Md>{message.content}</Md>
+      )}
+    </div>
+  );
+}
 
 export default function TutorWorkspace({
   activeId,
@@ -32,6 +87,18 @@ export default function TutorWorkspace({
   const [input, setInput] = useState("");
   const [file, setFile] = useState(null);
   const [subjectFilter, setSubjectFilter] = useState("all");
+  const [sttError, setSttError] = useState("");
+
+  const { listening, start: startSTT, stop: stopSTT } = useSpeechToText({
+    onResult: (transcript) => {
+      setInput((prev) => (prev ? prev + " " + transcript : transcript));
+      setSttError("");
+    },
+    onError: (msg) => {
+      setSttError(msg);
+      setTimeout(() => setSttError(""), 5000);
+    },
+  });
   const fileInputRef = useRef(null);
   const endRef = useRef(null);
   const activeIdRef = useRef(currentSessionId);
@@ -326,38 +393,9 @@ export default function TutorWorkspace({
           )}
 
           {/* Messages */}
-          {messages.map((m) => {
-            const isUser = m.sender === "user";
-            return (
-              <div
-                key={m.id}
-                className={
-                  isUser
-                    ? "self-end max-w-[92%] sm:max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-3.5 sm:px-4 py-2.5 text-sm shadow-sm leading-relaxed"
-                    : "border-l-4 border-purple-500 bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed"
-                }
-              >
-                {!isUser && (
-                  <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-slate-800 text-xs font-semibold text-purple-300">
-                    <GraduationCap size={14} className="text-purple-400" />
-                    <span>Academic Coach</span>
-                  </div>
-                )}
-                {m.image_path && (
-                  <img
-                    src={resolveUrl(m.image_path)}
-                    alt="Problem upload"
-                    className="rounded-lg mb-2 max-h-60"
-                  />
-                )}
-                {isUser ? (
-                  <div className="whitespace-pre-wrap">{m.content}</div>
-                ) : (
-                  <Md>{m.content}</Md>
-                )}
-              </div>
-            );
-          })}
+          {messages.map((m) => (
+            <TutorMessageItem key={m.id} message={m} />
+          ))}
 
           {loading && (
             <div className="flex items-center gap-2 text-slate-400 text-sm py-2">
@@ -394,6 +432,12 @@ export default function TutorWorkspace({
             </div>
           )}
 
+          {sttError && (
+            <div className="text-xs text-red-300 bg-red-950/50 border border-red-800/40 rounded-lg px-3 py-1.5 animate-[fadeIn_.2s]">
+              {sttError}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-2xl px-3 py-2 focus-within:border-purple-500 transition-colors">
             <input
               ref={fileInputRef}
@@ -423,9 +467,23 @@ export default function TutorWorkspace({
                   handleSend();
                 }
               }}
-              placeholder="Ask your coach anything, request a practice problem, or paste a question..."
+              placeholder={listening ? "Listening…" : "Ask your coach anything, request a practice problem, or paste a question..."}
               className="flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32"
             />
+
+            {/* Built-in Speech-to-Text Mic button (Always visible on Desktop & Mobile) */}
+            <button
+              type="button"
+              onClick={listening ? stopSTT : startSTT}
+              title={listening ? "Stop voice recording" : "Speak using device built-in speech recognition"}
+              className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
+                listening
+                  ? "bg-red-600 hover:bg-red-500 text-white animate-pulse ring-2 ring-red-400 shadow-md shadow-red-600/40"
+                  : "text-slate-400 hover:text-white hover:bg-slate-800 active:bg-slate-800"
+              }`}
+            >
+              {listening ? <MicOff size={17} /> : <Mic size={17} />}
+            </button>
 
             <button
               type="submit"
