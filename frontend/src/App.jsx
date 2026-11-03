@@ -44,8 +44,6 @@ export default function App() {
     try {
       localStorage.setItem("kodigo_active_chat_id", String(id));
     } catch {}
-    if (window.innerWidth < 768) setSidebar(false);
-
     // If already active and has loaded messages, do nothing
     if (id === activeChatIdRef.current && messagesCacheRef.current.has(id)) {
       return;
@@ -500,17 +498,19 @@ export default function App() {
           onClose={() => setSidebar(false)}
         />
         {viewMode === "tutor" ? (
-          <TutorWorkspace
-            activeId={activeId}
-            activeChat={chats.find((c) => String(c.id) === String(activeId))}
-            records={academicRecords}
-            onOpenProfile={() => setModal("academic")}
-            loadingSettings={loading}
-            onRefreshChats={refreshChats}
-            onNewTutorChat={newTutorChat}
-          />
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden border-r border-slate-700/60">
+            <TutorWorkspace
+              activeId={activeId}
+              activeChat={chats.find((c) => String(c.id) === String(activeId))}
+              records={academicRecords}
+              onOpenProfile={() => setModal("academic")}
+              loadingSettings={loading}
+              onRefreshChats={refreshChats}
+              onNewTutorChat={newTutorChat}
+            />
+          </div>
         ) : (
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-950/80">
+          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-950/80 border-r border-slate-700/60">
             <ChatFeed
               messages={messages}
               loading={loading}
