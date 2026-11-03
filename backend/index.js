@@ -138,22 +138,39 @@ function resolveApiKey(request, env, customKey = null) {
   }
 
   // 3. Cloudflare Worker secrets or environment variables
-  if (env) {
-    if (env.GEMINI_API_KEY && String(env.GEMINI_API_KEY).trim()) {
-      return String(env.GEMINI_API_KEY).trim();
+  if (env && typeof env === "object") {
+    // Exact property matches
+    for (const k of [
+      "GEMINI_API_KEY",
+      "gemini_api_key",
+      "GOOGLE_API_KEY",
+      "google_api_key",
+      "API_KEY",
+    ]) {
+      const val = env[k];
+      if (val && typeof val === "string" && val.trim()) {
+        return val.trim();
+      }
     }
-    if (env.GOOGLE_API_KEY && String(env.GOOGLE_API_KEY).trim()) {
-      return String(env.GOOGLE_API_KEY).trim();
+    // Case-insensitive regex match across all keys on env
+    for (const [k, v] of Object.entries(env)) {
+      if (
+        /gemini.*api.*key|google.*api.*key/i.test(k) &&
+        typeof v === "string" &&
+        v.trim()
+      ) {
+        return v.trim();
+      }
     }
   }
 
   // 4. Global process.env fallback
   if (typeof process !== "undefined" && process.env) {
-    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
-      return process.env.GEMINI_API_KEY.trim();
-    }
-    if (process.env.GOOGLE_API_KEY && process.env.GOOGLE_API_KEY.trim()) {
-      return process.env.GOOGLE_API_KEY.trim();
+    for (const k of ["GEMINI_API_KEY", "GOOGLE_API_KEY"]) {
+      const val = process.env[k];
+      if (val && typeof val === "string" && val.trim()) {
+        return val.trim();
+      }
     }
   }
 
@@ -304,10 +321,12 @@ export default {
     // 2. Server settings check (checks if GEMINI_API_KEY secret exists)
     if (path === "/api/settings") {
       const key = resolveApiKey(request, env);
+      const envKeys = env ? Object.keys(env) : [];
       return jsonResponse({
         server_has_gemini_key: Boolean(key),
         server_has_openai_key: false,
         has_key: Boolean(key),
+        env_keys: envKeys,
       });
     }
 
