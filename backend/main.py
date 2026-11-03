@@ -1,6 +1,5 @@
-# Root entrypoint for local execution (`uvicorn main:app`)
-from src.main import app, Default
+# Root entrypoint for Cloudflare Python Worker
+from src.main import Default
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+entrypoint = Default
+default = Default
