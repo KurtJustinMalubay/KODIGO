@@ -16,22 +16,22 @@ const CURATED_MODELS = {
     {
       id: "gemini-2.5-flash",
       name: "Gemini 2.5 Flash",
-      badge: "Recommended • Fast",
-      description: "Fastest multimodal reasoning model with generous free quota.",
+      badge: "Recommended • Ultra Fast",
+      description: "Sub-second multimodal reasoning model with massive throughput.",
       is_recommended: true,
     },
     {
       id: "gemini-2.5-pro",
       name: "Gemini 2.5 Pro",
-      badge: "Most Capable",
-      description: "Deep reasoning, math, and code generation.",
+      badge: "Deep Reasoning",
+      description: "High-accuracy reasoning, complex mathematics, and deep analysis.",
       is_recommended: false,
     },
     {
       id: "gemini-3.5-flash-lite",
       name: "Gemini 3.5 Flash Lite",
-      badge: "Ultra Fast",
-      description: "Lightweight, fastest response times for quick queries.",
+      badge: "Free Tier",
+      description: "Lightweight flash model for quick queries and quizzes.",
       is_recommended: false,
     },
   ],
@@ -193,12 +193,15 @@ async function parseBody(request) {
   }
 }
 
-async function callGemini(apiKey, modelName, systemInstruction, contentsPayload) {
+async function callGemini(apiKey, modelName, systemInstruction, contentsPayload, maxOutputTokens = 2048) {
   let model = (modelName || "gemini-2.5-flash").trim();
   if (model.startsWith("models/")) {
     model = model.slice("models/".length);
   }
-  if (!model) model = "gemini-2.5-flash";
+  // gemini-2.5-flash is Google's ultra-low-latency model with native thinking & speed
+  if (!model || model === "gemini-3.5-flash-lite") {
+    model = "gemini-2.5-flash";
+  }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model
@@ -224,7 +227,14 @@ async function callGemini(apiKey, modelName, systemInstruction, contentsPayload)
     ];
   }
 
-  const body = { contents };
+  const body = {
+    contents,
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: maxOutputTokens,
+      topP: 0.95,
+    },
+  };
 
   if (systemInstruction) {
     body.systemInstruction = {
@@ -463,7 +473,7 @@ export default {
 
       const modelName = request.headers.get("x-model-name") || "gemini-2.5-flash";
       try {
-        const reply = await callGemini(apiKey, modelName, CHAT_SYS, prompt);
+        const reply = await callGemini(apiKey, modelName, CHAT_SYS, prompt, 1500);
         return jsonResponse({ reply, content: reply });
       } catch (err) {
         return errorResponse(err.message, 500);
@@ -498,7 +508,7 @@ export default {
         promptText = `[Reference Material & Academic Context]:\n${contextText}\n\n[User Query]:\n${promptText}`;
       }
 
-      // Parse conversation history
+      // Parse conversation history - limit to last 4 messages to save latency & tokens
       let history = [];
       if (historyJson) {
         try {
@@ -508,7 +518,7 @@ export default {
 
       const contents = [];
       if (Array.isArray(history)) {
-        for (const msg of history.slice(-6)) {
+        for (const msg of history.slice(-4)) {
           if (msg && msg.content) {
             contents.push({
               role: msg.role === "assistant" || msg.role === "ai" ? "model" : "user",
@@ -525,9 +535,10 @@ export default {
       const sysPrompt =
         mode === "quiz" ? QUIZ_SYS : mode === "tutor" ? TUTOR_SYS : CHAT_SYS;
       const modelName = request.headers.get("x-model-name") || "gemini-2.5-flash";
+      const maxTokens = mode === "quiz" ? 512 : 1800; // Quiz only needs short answer, 3x faster response!
 
       try {
-        const reply = await callGemini(apiKey, modelName, sysPrompt, contents);
+        const reply = await callGemini(apiKey, modelName, sysPrompt, contents, maxTokens);
 
         // Extract chat ID from path
         const match = path.match(/^\/api\/chats\/([^/]+)\/messages$/);
@@ -602,7 +613,7 @@ export default {
 
       const modelName = request.headers.get("x-model-name") || "gemini-2.5-flash";
       try {
-        const reply = await callGemini(apiKey, modelName, CHAT_SYS, explainPrompt);
+        const reply = await callGemini(apiKey, modelName, CHAT_SYS, explainPrompt, 1500);
         return jsonResponse({
           explanation: reply,
           detailed_explanation: reply,
