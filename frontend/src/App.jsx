@@ -472,7 +472,7 @@ export default function App() {
   }, [settings?.font_size]);
 
   return (
-    <div className={`h-full w-full flex flex-col ${themeClass} ${fontSizeClass}`}>
+    <div className={`h-full w-full flex flex-col overflow-hidden ${themeClass} ${fontSizeClass}`}>
       <Header
         onToggle={toggleSidebar}
         settings={settings}
