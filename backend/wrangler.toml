@@ -1,5 +1,4 @@
 name = "kodigo-backend"
-main = "src/main.py"
-compatibility_date = "2026-11-01"
-compatibility_flags = ["python_workers"]
+main = "index.js"
+compatibility_date = "2024-11-01"
 workers_dev = true
