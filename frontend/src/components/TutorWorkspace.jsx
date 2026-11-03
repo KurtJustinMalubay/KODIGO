@@ -15,11 +15,16 @@ import Md from "./Md";
 
 export default function TutorWorkspace({
   activeId,
+  activeChat,
   records = [],
   onOpenProfile,
   loadingSettings,
   onRefreshChats,
+  onNewTutorChat,
 }) {
+  const isTutorSession = Boolean(activeChat && activeChat.is_tutor);
+  const currentSessionId = isTutorSession ? activeId : null;
+
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
@@ -27,23 +32,23 @@ export default function TutorWorkspace({
   const [file, setFile] = useState(null);
   const fileInputRef = useRef(null);
   const endRef = useRef(null);
-  const activeIdRef = useRef(activeId);
-  activeIdRef.current = activeId;
+  const activeIdRef = useRef(currentSessionId);
+  activeIdRef.current = currentSessionId;
 
   // Load messages for the selected tutor session
   useEffect(() => {
-    if (!activeId) {
+    if (!currentSessionId) {
       setMessages([]);
       return;
     }
     let active = true;
-    api.messages(activeId).then((msgs) => {
-      if (active && activeIdRef.current === activeId) setMessages(msgs);
+    api.messages(currentSessionId).then((msgs) => {
+      if (active && activeIdRef.current === currentSessionId) setMessages(msgs);
     });
     return () => {
       active = false;
     };
-  }, [activeId]);
+  }, [currentSessionId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,7 +74,14 @@ export default function TutorWorkspace({
   const handleSend = async (contentToSend = null) => {
     const text = (contentToSend !== null ? contentToSend : input).trim();
     if (!text && !file) return;
-    if (!activeId) return;
+
+    let targetSessionId = currentSessionId;
+    if (!targetSessionId) {
+      if (onNewTutorChat) {
+        targetSessionId = await onNewTutorChat();
+      }
+      if (!targetSessionId) return;
+    }
 
     const userFile = file;
     setInput("");
@@ -82,7 +94,7 @@ export default function TutorWorkspace({
     const localImg = userFile ? URL.createObjectURL(userFile) : null;
     const optUser = {
       id: tempId,
-      chat_id: activeId,
+      chat_id: targetSessionId,
       sender: "user",
       mode: "tutor",
       content: text || (userFile ? "Reviewing question image..." : ""),
@@ -111,14 +123,12 @@ export default function TutorWorkspace({
 
     try {
       setLoadingStatus("Coach is thinking…");
-      const result = await api.send(activeId, text, "tutor", processedFile, clientOcrText);
-      if (activeIdRef.current === activeId) {
-        setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempId);
-          return [...filtered, result.user, result.ai];
-        });
-      }
-      if (onRefreshChats) await onRefreshChats(activeId);
+      const result = await api.send(targetSessionId, text, "tutor", processedFile, clientOcrText);
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== tempId);
+        return [...filtered, result.user, result.ai];
+      });
+      if (onRefreshChats) await onRefreshChats(targetSessionId);
     } catch (err) {
       alert("Tutor error: " + err.message);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -130,13 +140,13 @@ export default function TutorWorkspace({
   };
 
   const handleClear = async () => {
-    if (!activeId) return;
+    if (!currentSessionId) return;
     if (
       confirm(
         "Delete this tutoring session? Your academic profile will be saved."
       )
     ) {
-      await api.delChat(activeId);
+      await api.delChat(currentSessionId);
       if (onRefreshChats) await onRefreshChats();
     }
   };
@@ -153,27 +163,6 @@ export default function TutorWorkspace({
     "Give me a challenging practice problem with hints instead of the answer.",
     "Help me design an effective study schedule for my upcoming exams.",
   ];
-
-  // No session selected yet
-  if (!activeId) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center min-w-0 bg-slate-950/80 text-center px-6 gap-4">
-        <div className="w-16 h-16 rounded-2xl bg-purple-600/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/5">
-          <GraduationCap size={32} />
-        </div>
-        <div>
-          <h3 className="text-lg font-bold text-slate-100">
-            No Tutor Session Selected
-          </h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 leading-relaxed">
-            Click <strong className="text-slate-300">New Tutor Session</strong>{" "}
-            in the sidebar to start a personalized coaching session, or select
-            an existing one.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-slate-950/80 overflow-hidden">
@@ -421,7 +410,7 @@ export default function TutorWorkspace({
 
             <button
               type="submit"
-              disabled={(!input.trim() && !file) || loading || !activeId}
+              disabled={(!input.trim() && !file) || loading}
               className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white transition-colors cursor-pointer shrink-0"
             >
               {loading ? (
