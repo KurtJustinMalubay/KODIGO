@@ -10,6 +10,7 @@ import {
   PinOff,
   Plus,
   Search,
+  Settings,
   Trash2,
   X,
 } from "lucide-react";
@@ -60,6 +61,7 @@ export default function Sidebar({
   onExport,
   onImport,
   onClose,
+  onSettings,
 }) {
   const [query, setQuery] = useState("");
   const fileInputRef = useRef(null);
@@ -279,46 +281,63 @@ export default function Sidebar({
 
         {/* Expanded View */}
         {open ? (
-          <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-4">
-            {Object.keys(groups).length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-500">
-                {query
-                  ? "No matching conversations found."
-                  : viewMode === "tutor"
-                  ? "No tutor sessions yet. Start one!"
-                  : "No chats yet. Start one!"}
-              </div>
-            ) : (
-              Object.entries(groups).map(([groupName, list]) => (
-                <div key={groupName} className="space-y-1">
-                  <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    {groupName === "Pinned" ? (
-                      <>
-                        <Pin size={11} className="text-indigo-400" />
-                        <span className="text-indigo-300">Pinned</span>
-                      </>
-                    ) : (
-                      <span>{groupName}</span>
-                    )}
-                    <span className="text-[10px] text-slate-500">({list.length})</span>
-                  </div>
-
-                  {list.map((chat) => (
-                    <ExpandedChatRow
-                      key={chat.id}
-                      chat={chat}
-                      active={chat.id === activeId}
-                      onSelect={onSelect}
-                      onDelete={onDelete}
-                      onTogglePin={onPin}
-                      onRename={onRename}
-                      onExport={onExport}
-                    />
-                  ))}
+          <>
+            <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-4">
+              {Object.keys(groups).length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-500">
+                  {query
+                    ? "No matching conversations found."
+                    : viewMode === "tutor"
+                    ? "No tutor sessions yet. Start one!"
+                    : "No chats yet. Start one!"}
                 </div>
-              ))
-            )}
-          </div>
+              ) : (
+                Object.entries(groups).map(([groupName, list]) => (
+                  <div key={groupName} className="space-y-1">
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      {groupName === "Pinned" ? (
+                        <>
+                          <Pin size={11} className="text-indigo-400" />
+                          <span className="text-indigo-300">Pinned</span>
+                        </>
+                      ) : (
+                        <span>{groupName}</span>
+                      )}
+                      <span className="text-[10px] text-slate-500">({list.length})</span>
+                    </div>
+
+                    {list.map((chat) => (
+                      <ExpandedChatRow
+                        key={chat.id}
+                        chat={chat}
+                        active={chat.id === activeId}
+                        onSelect={onSelect}
+                        onDelete={onDelete}
+                        onTogglePin={onPin}
+                        onRename={onRename}
+                        onExport={onExport}
+                      />
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Settings footer — always visible at the bottom of the sidebar */}
+            <div className="shrink-0 px-2 py-2 border-t border-slate-800/60">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSettings) onSettings();
+                  if (onClose) onClose();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 active:bg-slate-700 transition-colors cursor-pointer text-sm font-medium"
+              >
+                <Settings size={16} className="shrink-0" />
+                <span>Settings</span>
+              </button>
+            </div>
+          </>
         ) : (
           /* Minimized Dock Rail (PC only) */
           <div className="hidden md:flex flex-1 flex-col items-center py-2 overflow-y-auto gap-1.5 px-1">
@@ -340,6 +359,15 @@ export default function Sidebar({
                 onSelect={onSelect}
               />
             ))}
+            {/* Settings button in minimized dock rail */}
+            <button
+              type="button"
+              onClick={() => onSettings && onSettings()}
+              title="Settings"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer mt-auto"
+            >
+              <Settings size={16} />
+            </button>
           </div>
         )}
       </aside>
