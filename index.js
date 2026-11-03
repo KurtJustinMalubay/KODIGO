@@ -10,6 +10,58 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "86400",
 };
 
+// ── Curated Models ─────────────────────────────────────────────────────────────
+const CURATED_MODELS = {
+  gemini: [
+    {
+      id: "gemini-2.5-flash",
+      name: "Gemini 2.5 Flash",
+      badge: "Recommended • Fast",
+      description: "Fastest multimodal reasoning model with generous free quota.",
+      is_recommended: true,
+    },
+    {
+      id: "gemini-2.5-pro",
+      name: "Gemini 2.5 Pro",
+      badge: "Most Capable",
+      description: "Deep reasoning, math, and code generation.",
+      is_recommended: false,
+    },
+    {
+      id: "gemini-3.5-flash-lite",
+      name: "Gemini 3.5 Flash Lite",
+      badge: "Ultra Fast",
+      description: "Lightweight, fastest response times for quick queries.",
+      is_recommended: false,
+    },
+  ],
+  openai: [
+    {
+      id: "gpt-4o-mini",
+      name: "GPT-4o Mini",
+      badge: "Recommended • Fast",
+      description: "Fast, intelligent, and affordable OpenAI model.",
+      is_recommended: true,
+    },
+    {
+      id: "gpt-4o",
+      name: "GPT-4o",
+      badge: "High Intelligence",
+      description: "Flagship multimodal OpenAI model.",
+      is_recommended: false,
+    },
+  ],
+  ollama: [
+    {
+      id: "llama3",
+      name: "Llama 3",
+      badge: "Local",
+      description: "Local model running on your machine.",
+      is_recommended: true,
+    },
+  ],
+};
+
 // ── Core System Prompts ────────────────────────────────────────────────────────
 const QUIZ_SYS =
   "You are KODIGO, an AI quiz solver. " +
@@ -95,7 +147,7 @@ function resolveApiKey(request, env, customKey = null) {
     }
   }
 
-  // 4. Global process.env fallback (if in node/dev environment)
+  // 4. Global process.env fallback
   if (typeof process !== "undefined" && process.env) {
     if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
       return process.env.GEMINI_API_KEY.trim();
@@ -241,17 +293,153 @@ export default {
       const key = resolveApiKey(request, env);
       return jsonResponse({
         server_has_gemini_key: Boolean(key),
+        server_has_openai_key: false,
+        has_key: Boolean(key),
       });
     }
 
-    // 3. Models list
+    // 3. Models list & Verification: POST /api/models (or GET)
     if (path === "/api/models") {
+      let body = {};
+      if (method === "POST") {
+        body = await parseBody(request);
+      }
+
+      const provider = (body.provider || "gemini").toLowerCase();
+      let key = (body.cloud_api_key || "").trim();
+      let isServerKey = false;
+
+      // Fall back to server key if in free mode or if key is empty
+      if (!key) {
+        const serverKey = resolveApiKey(request, env);
+        if (serverKey) {
+          key = serverKey;
+          isServerKey = true;
+        }
+      }
+
+      // Gemini Verification
+      if (provider === "gemini") {
+        if (!key) {
+          return jsonResponse({
+            models: CURATED_MODELS.gemini,
+            verified: false,
+            message:
+              "Showing recommended models. Enter your Google AI Studio API key and click 'Check Models' to verify your key.",
+          });
+        }
+
+        try {
+          const testUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(
+            key
+          )}`;
+          const testResp = await fetch(testUrl);
+
+          if (!testResp.ok) {
+            let errMsg = "API key verification failed.";
+            try {
+              const errJson = await testResp.json();
+              errMsg = errJson.error?.message || errMsg;
+            } catch {}
+            return jsonResponse({
+              models: CURATED_MODELS.gemini,
+              verified: false,
+              message: `Google AI Studio: ${errMsg}`,
+            });
+          }
+
+          const rawData = await testResp.json().catch(() => ({}));
+          const apiModels = rawData.models || [];
+
+          // Map active models from Google or return curated list
+          const activeList = [...CURATED_MODELS.gemini];
+
+          // Add any other active 2.5/3.0+ models discovered from their account
+          for (const m of apiModels) {
+            const rawName = (m.name || "").replace("models/", "");
+            const lower = rawName.toLowerCase();
+            const methods = m.supportedGenerationMethods || [];
+            if (!methods.includes("generateContent")) continue;
+            if (
+              lower.includes("gemini-1.") ||
+              lower.includes("embedding") ||
+              lower.includes("aqa") ||
+              lower.includes("imagen")
+            ) {
+              continue;
+            }
+
+            if (!activeList.some((item) => item.id === rawName)) {
+              activeList.push({
+                id: rawName,
+                name: m.displayName || rawName,
+                badge: "Active",
+                description: m.description || "Active Google Gemini model.",
+                is_recommended: false,
+              });
+            }
+          }
+
+          return jsonResponse({
+            models: activeList,
+            verified: true,
+            is_server_key: isServerKey,
+            message: isServerKey
+              ? "🎉 Free Tier active! Verified using built-in server Gemini key."
+              : `Verified with Google AI Studio! Found ${activeList.length} active models for your API key.`,
+          });
+        } catch (err) {
+          return jsonResponse({
+            models: CURATED_MODELS.gemini,
+            verified: false,
+            message: `Could not verify with Google AI Studio: ${err.message}`,
+          });
+        }
+      }
+
+      // OpenAI Verification
+      if (provider === "openai") {
+        if (!key) {
+          return jsonResponse({
+            models: CURATED_MODELS.openai,
+            verified: false,
+            message:
+              "Showing recommended models. Enter your OpenAI API key and click 'Check Models' to test.",
+          });
+        }
+
+        try {
+          const testResp = await fetch("https://api.openai.com/v1/models", {
+            headers: { Authorization: `Bearer ${key}` },
+          });
+
+          if (!testResp.ok) {
+            return jsonResponse({
+              models: CURATED_MODELS.openai,
+              verified: false,
+              message: "OpenAI: API key verification failed.",
+            });
+          }
+
+          return jsonResponse({
+            models: CURATED_MODELS.openai,
+            verified: true,
+            message: "Verified with OpenAI! Your API key is active.",
+          });
+        } catch (err) {
+          return jsonResponse({
+            models: CURATED_MODELS.openai,
+            verified: false,
+            message: `Could not connect to OpenAI: ${err.message}`,
+          });
+        }
+      }
+
+      // Ollama
       return jsonResponse({
-        models: [
-          { name: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Recommended)" },
-          { name: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-          { name: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite" },
-        ],
+        models: CURATED_MODELS.ollama,
+        verified: true,
+        message: "Ollama selected.",
       });
     }
 
