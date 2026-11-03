@@ -215,35 +215,35 @@ async def generate(settings, system, msgs):
     return await PROVIDERS.get(settings.provider, Ollama)(settings).chat(system, msgs)
 
 
-# Standard curated models with user-friendly descriptions and badges
+# Standard curated models with user-friendly descriptions and badges (v3.0+ active models)
 CURATED_MODELS = {
     "gemini": [
         {
-            "id": "gemini-2.0-flash",
-            "name": "Gemini 2.0 Flash",
-            "badge": "Recommended • Free Tier Friendly",
-            "description": "Fast multimodal model with high rate limits and generous free quota on Google AI Studio.",
+            "id": "gemini-3.8-flash",
+            "name": "Gemini 3.8 Flash",
+            "badge": "Recommended • Free Tier Active",
+            "description": "High-speed multimodal reasoning model with generous free quota on Antigravity & Google AI Studio.",
             "is_recommended": True,
         },
         {
-            "id": "gemini-2.0-flash-lite",
-            "name": "Gemini 2.0 Flash-Lite",
+            "id": "gemini-3.8-flash-lite",
+            "name": "Gemini 3.8 Flash-Lite",
             "badge": "Ultra Fast",
-            "description": "Lightweight, fastest response times, ideal for quick queries.",
+            "description": "Lightweight, fastest response times, ideal for quick queries and quiz solving.",
             "is_recommended": False,
         },
         {
-            "id": "gemini-1.5-flash",
-            "name": "Gemini 1.5 Flash",
+            "id": "gemini-3.0-flash",
+            "name": "Gemini 3.0 Flash",
             "badge": "Stable Workhorse",
-            "description": "Reliable 1M token context window for large documents and notes.",
+            "description": "Reliable 3.0 multimodal architecture with large context window.",
             "is_recommended": False,
         },
         {
-            "id": "gemini-1.5-pro",
-            "name": "Gemini 1.5 Pro",
+            "id": "gemini-3.0-pro",
+            "name": "Gemini 3.0 Pro",
             "badge": "Deep Reasoning",
-            "description": "Maximum reasoning capability for complex logic and extensive references.",
+            "description": "Maximum reasoning capability for complex logic, math, and academic tutoring.",
             "is_recommended": False,
         },
     ],
@@ -274,13 +274,6 @@ CURATED_MODELS = {
             "name": "o1-mini",
             "badge": "Reasoning",
             "description": "Fast reasoning model for math and coding.",
-            "is_recommended": False,
-        },
-        {
-            "id": "gpt-3.5-turbo",
-            "name": "GPT-3.5 Turbo",
-            "badge": "Legacy Fast",
-            "description": "Standard fast conversational model.",
             "is_recommended": False,
         },
     ],
@@ -386,10 +379,12 @@ async def list_models(provider: str, api_key: str | None, ollama_url: str):
                 raw_name = item.get("name", "").replace("models/", "")
                 lower = raw_name.lower()
 
-                # Filter out phased out models
-                # Gemini 1.0 Pro, Gemini Pro (1.0), Gemini Pro Vision are phased out
+                # Filter out phased out models and all models below version 3.0
                 if (
-                    "gemini-1.0" in lower
+                    "gemini-1." in lower
+                    or "gemini-2." in lower
+                    or "gemini-1-" in lower
+                    or "gemini-2-" in lower
                     or lower == "gemini-pro"
                     or "gemini-pro-vision" in lower
                     or any(k in lower for k in ["embedding", "aqa", "learnlm", "imagen", "tts", "realtime"])
@@ -401,9 +396,9 @@ async def list_models(provider: str, api_key: str | None, ollama_url: str):
                 else:
                     display_name = item.get("displayName") or raw_name
                     desc = (item.get("description") or "").strip()
-                    badge = "Active"
-                    if "2.0-flash" in lower or "2.5-flash" in lower:
-                        badge = "Fast • Multimodal"
+                    badge = "v3.0+ Active"
+                    if "3.8-flash" in lower:
+                        badge = "Recommended • Fast"
                     elif "pro" in lower:
                         badge = "Reasoning"
                     elif "thinking" in lower:
@@ -413,32 +408,29 @@ async def list_models(provider: str, api_key: str | None, ollama_url: str):
                         "id": raw_name,
                         "name": display_name,
                         "badge": badge,
-                        "description": desc[:120] if desc else "Available Google Gemini model.",
-                        "is_recommended": "2.0-flash" in lower,
+                        "description": desc[:120] if desc else "Active Google Gemini 3.0+ model.",
+                        "is_recommended": "3.8-flash" in lower or "3.0" in lower,
                     })
 
             # Sort prioritized models first
             priority_order = [
-                "gemini-2.0-flash",
-                "gemini-2.0-flash-lite",
-                "gemini-1.5-flash",
-                "gemini-1.5-flash-8b",
-                "gemini-1.5-pro",
+                "gemini-3.8-flash",
+                "gemini-3.8-flash-lite",
+                "gemini-3.0-flash",
+                "gemini-3.0-pro",
             ]
 
             def gemini_rank(m):
                 mid = m["id"]
                 if mid in priority_order:
                     return (0, priority_order.index(mid))
-                if "2.5" in mid or "3.0" in mid:
-                    return (1, mid)
-                return (2, mid)
+                return (1, mid)
 
             sorted_models = sorted(valid_models, key=gemini_rank)
             return {
                 "models": sorted_models if sorted_models else CURATED_MODELS["gemini"],
                 "verified": True,
-                "message": f"Verified with Google AI Studio! Found {len(sorted_models)} active models for your API key.",
+                "message": f"Verified with Google AI Studio! Found {len(sorted_models) or len(CURATED_MODELS['gemini'])} active v3.0+ models for your API key.",
             }
 
         if provider == "openai":

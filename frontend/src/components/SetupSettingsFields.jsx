@@ -34,7 +34,8 @@ export default function SetupSettingsFields({
     const m = modelId.toLowerCase();
     return (
       m === "gemini-pro" ||
-      m.includes("gemini-1.0") ||
+      m.includes("gemini-1.") ||
+      m.includes("gemini-2.") ||
       m.includes("gemini-pro-vision")
     );
   };
@@ -95,7 +96,7 @@ export default function SetupSettingsFields({
     const defaultModels = {
       ollama: "llama3",
       openai: "gpt-4o-mini",
-      gemini: "gemini-2.0-flash",
+      gemini: "gemini-3.8-flash",
     };
     setSettings((current) => ({
       ...current,
@@ -342,16 +343,16 @@ export default function SetupSettingsFields({
         {isModelDeprecated(settings.model_name) && (
           <div className="mt-2 p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 flex items-center justify-between gap-2">
             <span>
-              ⚠️ <strong>{settings.model_name}</strong> has been phased out by Google. Upgrade to Gemini 2.0 Flash for active support.
+              ⚠️ <strong>{settings.model_name}</strong> is below v3.0 and has been phased out. Upgrade to Gemini 3.8 Flash for active support.
             </span>
             <button
               type="button"
               onClick={() =>
-                setSettings((s) => ({ ...s, model_name: "gemini-2.0-flash" }))
+                setSettings((s) => ({ ...s, model_name: "gemini-3.8-flash" }))
               }
-              className="shrink-0 px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium transition-colors"
+              className="shrink-0 px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium transition-colors cursor-pointer"
             >
-              Switch to 2.0 Flash
+              Switch to 3.8 Flash
             </button>
           </div>
         )}
@@ -361,7 +362,7 @@ export default function SetupSettingsFields({
             className={`${inputClass} mt-2`}
             value={settings.model_name}
             onChange={set("model_name")}
-            placeholder="Enter exact model ID (e.g. gemini-2.0-flash)"
+            placeholder="Enter exact model ID (e.g. gemini-3.8-flash)"
           />
         )}
       </Field>

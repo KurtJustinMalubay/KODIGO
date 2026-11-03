@@ -6,7 +6,7 @@ export default function Header({ onToggle, settings, onModal }) {
     settings?.provider === "gemini" &&
     (settings?.key_mode === "free" || (!settings?.key_mode && !settings?.cloud_api_key));
 
-  const modelDisplay = settings?.model_name || "gemini-2.0-flash";
+  const modelDisplay = settings?.model_name || "gemini-3.8-flash";
 
   return (
     <header className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 h-14 border-b border-slate-800 bg-slate-950/95 backdrop-blur-md select-none shrink-0 z-10">

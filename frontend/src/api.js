@@ -9,7 +9,7 @@ const SETTINGS_KEY = "kodigo_device_settings";
 
 export const DEFAULT_SETTINGS = {
   provider: "gemini",
-  model_name: "gemini-2.0-flash",
+  model_name: "gemini-3.8-flash",
   ollama_url: "http://localhost:11434",
   cloud_api_key: "",
   key_mode: "free", // "free" = built-in free tier, "custom" = user custom key
