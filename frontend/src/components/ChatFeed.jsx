@@ -22,7 +22,7 @@ function AiMessage({ message, showTimestamps }) {
   const [minimized, setMinimized] = useState({});
   const [maximizedKey, setMaximizedKey] = useState(null);
   const [busy, setBusy] = useState(null);
-  const { speaking, speak, stop: stopTTS, supported: ttsSupported } = useTextToSpeech();
+  const { isSpeaking, toggle: toggleTTS } = useTextToSpeech(message.id);
 
   const items =
     message.mode === "quiz"
@@ -78,23 +78,21 @@ function AiMessage({ message, showTimestamps }) {
       >
         <Md>{message.content}</Md>
 
-        {/* TTS + Timestamp row */}
-        <div className="flex items-center justify-between mt-1.5">
-          {ttsSupported && (
-            <button
-              type="button"
-              onClick={() => speaking ? stopTTS() : speak(message.content)}
-              title={speaking ? "Stop reading" : "Read aloud"}
-              className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg transition-colors cursor-pointer ${
-                speaking
-                  ? "text-indigo-300 bg-indigo-950/60 hover:bg-indigo-950"
-                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/60"
-              }`}
-            >
-              {speaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
-              <span className="hidden sm:inline">{speaking ? "Stop" : "Read"}</span>
-            </button>
-          )}
+        {/* TTS Read Aloud + Timestamp row (Always visible on Desktop & Mobile) */}
+        <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-800/60">
+          <button
+            type="button"
+            onClick={() => toggleTTS(message.content)}
+            title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
+            className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+              isSpeaking
+                ? "text-indigo-200 bg-indigo-900/60 border border-indigo-700/60 shadow-sm animate-pulse"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
+            }`}
+          >
+            {isSpeaking ? <VolumeX size={14} className="text-indigo-400" /> : <Volume2 size={14} />}
+            <span>{isSpeaking ? "Stop" : "Read"}</span>
+          </button>
           {showTimestamps && timeFormatted && (
             <div className="text-[10px] text-slate-500 text-right opacity-70 ml-auto">
               {timeFormatted}

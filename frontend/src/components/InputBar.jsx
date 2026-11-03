@@ -20,14 +20,14 @@ export default function InputBar({ mode, setMode, onSend, loading }) {
   const fileRef = useRef(null);
   const textarea = useRef(null);
 
-  const { listening, start: startSTT, stop: stopSTT, supported: sttSupported } = useSpeechToText({
+  const { listening, start: startSTT, stop: stopSTT } = useSpeechToText({
     onResult: (transcript) => {
       setText((prev) => (prev ? prev + " " + transcript : transcript));
       setSttError("");
     },
     onError: (msg) => {
       setSttError(msg);
-      setTimeout(() => setSttError(""), 4000);
+      setTimeout(() => setSttError(""), 5000);
     },
   });
 
@@ -68,10 +68,17 @@ export default function InputBar({ mode, setMode, onSend, loading }) {
           </div>
         )}
 
-        {/* STT error toast */}
+        {/* STT feedback / error banner */}
         {sttError && (
-          <div className="text-xs text-red-300 bg-red-950/50 border border-red-800/40 rounded-lg px-3 py-1.5 animate-[fadeIn_.2s]">
-            {sttError}
+          <div className="text-xs text-amber-200 bg-amber-950/60 border border-amber-800/60 rounded-xl px-3 py-2 flex items-center justify-between gap-2 animate-[fadeIn_.2s]">
+            <span>{sttError}</span>
+            <button
+              type="button"
+              onClick={() => setSttError("")}
+              className="text-amber-400 hover:text-amber-100 text-xs shrink-0 cursor-pointer"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
@@ -105,10 +112,10 @@ export default function InputBar({ mode, setMode, onSend, loading }) {
             value={text}
             placeholder={
               listening
-                ? "Listening…"
+                ? "🎙️ Listening... Speak into your device microphone"
                 : mode === "quiz"
-                ? "Drop quiz image or paste question…"
-                : "Ask anything, discuss, or drop problem image…"
+                ? "Drop quiz image, type question, or tap mic…"
+                : "Ask anything, discuss, or speak your question…"
             }
             onChange={(event) => {
               setText(event.target.value);
@@ -130,21 +137,19 @@ export default function InputBar({ mode, setMode, onSend, loading }) {
             className="flex-1 bg-transparent outline-none resize-none text-sm text-slate-100 py-2.5 placeholder-slate-500 leading-relaxed max-h-36 min-h-[40px]"
           />
 
-          {/* Mic button */}
-          {sttSupported && (
-            <button
-              type="button"
-              onClick={listening ? stopSTT : startSTT}
-              title={listening ? "Stop recording" : "Speak your question"}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all cursor-pointer shrink-0 ${
-                listening
-                  ? "bg-red-600 hover:bg-red-500 text-white animate-pulse"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800"
-              }`}
-            >
-              {listening ? <MicOff size={17} /> : <Mic size={17} />}
-            </button>
-          )}
+          {/* Built-in Speech-to-Text Mic button (Always visible on Desktop & Mobile) */}
+          <button
+            type="button"
+            onClick={listening ? stopSTT : startSTT}
+            title={listening ? "Stop voice recording" : "Speak using device built-in speech recognition"}
+            className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all cursor-pointer shrink-0 ${
+              listening
+                ? "bg-red-600 hover:bg-red-500 text-white animate-pulse ring-2 ring-red-400 shadow-md shadow-red-600/40"
+                : "text-slate-400 hover:text-white hover:bg-slate-800 active:bg-slate-800"
+            }`}
+          >
+            {listening ? <MicOff size={18} /> : <Mic size={18} />}
+          </button>
 
           {/* Send button */}
           <button
