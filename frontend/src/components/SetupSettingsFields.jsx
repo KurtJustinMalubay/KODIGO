@@ -46,8 +46,8 @@ export default function SetupSettingsFields({
     (settings.key_mode === "free" || (!settings.key_mode && !settings.cloud_api_key));
 
   useEffect(() => {
-    if (isFreeTier && settings.model_name !== "gemini-2.0-flash") {
-      setSettings((s) => ({ ...s, model_name: "gemini-2.0-flash" }));
+    if (isFreeTier && settings.model_name !== "gemini-3.5-flash-lite") {
+      setSettings((s) => ({ ...s, model_name: "gemini-3.5-flash-lite" }));
     }
   }, [isFreeTier, settings.model_name, setSettings]);
 
@@ -107,7 +107,7 @@ export default function SetupSettingsFields({
     const defaultModels = {
       ollama: "llama3",
       openai: "gpt-4o-mini",
-      gemini: "gemini-2.0-flash",
+      gemini: "gemini-3.5-flash-lite",
     };
     setSettings((current) => ({
       ...current,
@@ -175,7 +175,7 @@ export default function SetupSettingsFields({
                     setSettings((s) => ({
                       ...s,
                       key_mode: "free",
-                      model_name: "gemini-2.0-flash",
+                      model_name: "gemini-3.5-flash-lite",
                     }));
                     loadModels("");
                   }}

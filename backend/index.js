@@ -15,23 +15,23 @@ const CORS_HEADERS = {
 };
 
 // ── Default model ──────────────────────────────────────────────────────────────
-const DEFAULT_MODEL = "gemini-2.0-flash"; // Real model available on free tier
+const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 
 // ── Curated Models ─────────────────────────────────────────────────────────────
 const CURATED_MODELS = {
   gemini: [
     {
-      id: "gemini-2.0-flash",
-      name: "Gemini 2.0 Flash",
+      id: "gemini-3.5-flash-lite",
+      name: "Gemini 3.5 Flash Lite",
       badge: "Recommended • Free Tier",
-      description: "Fast, efficient model available on the free tier. Best for quick queries and quizzes.",
+      description: "Fastest, low-latency model optimized for quick queries, tutoring, and quizzes.",
       is_recommended: true,
     },
     {
-      id: "gemini-2.0-flash-lite",
-      name: "Gemini 2.0 Flash Lite",
-      badge: "Ultra Fast",
-      description: "Lightweight and fastest model, ideal for high-volume simple tasks.",
+      id: "gemini-2.0-flash",
+      name: "Gemini 2.0 Flash",
+      badge: "Fast",
+      description: "Fast and efficient model available on the free tier.",
       is_recommended: false,
     },
     {
@@ -221,7 +221,7 @@ async function parseBody(request) {
 
 /**
  * Call the Gemini generateContent API.
- * Safely handles models that do NOT support thinkingConfig.
+ * Automatically falls back to gemini-2.0-flash if the requested model returns 404.
  */
 async function callGemini(apiKey, modelName, systemInstruction, contentsPayload, maxOutputTokens) {
   var model = (modelName || DEFAULT_MODEL).trim();
@@ -234,12 +234,6 @@ async function callGemini(apiKey, modelName, systemInstruction, contentsPayload,
 
   var tokens = maxOutputTokens || 2048;
 
-  var url =
-    "https://generativelanguage.googleapis.com/v1beta/models/" +
-    encodeURIComponent(model) +
-    ":generateContent?key=" +
-    encodeURIComponent(apiKey);
-
   // Normalise contents
   var contents;
   if (Array.isArray(contentsPayload)) {
@@ -250,51 +244,74 @@ async function callGemini(apiKey, modelName, systemInstruction, contentsPayload,
     contents = [{ role: "user", parts: [{ text: String(contentsPayload || "Hello") }] }];
   }
 
-  // Build generation config — do NOT include thinkingConfig for non-thinking models
-  var generationConfig = {
-    temperature: 0.3,
-    maxOutputTokens: tokens,
-    topP: 0.8,
-  };
-
   var body = {
     contents: contents,
-    generationConfig: generationConfig,
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: tokens,
+      topP: 0.8,
+    },
   };
 
   if (systemInstruction) {
     body.systemInstruction = { parts: [{ text: String(systemInstruction) }] };
   }
 
-  var response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  // Try requested model first; fall back to gemini-2.0-flash if model is not found
+  var modelsToTry = [model];
+  if (model !== "gemini-2.0-flash") modelsToTry.push("gemini-2.0-flash");
 
-  var resText = await response.text();
+  var lastError = null;
+  for (var ti = 0; ti < modelsToTry.length; ti++) {
+    var tryModel = modelsToTry[ti];
+    var url =
+      "https://generativelanguage.googleapis.com/v1beta/models/" +
+      encodeURIComponent(tryModel) +
+      ":generateContent?key=" +
+      encodeURIComponent(apiKey);
 
-  if (!response.ok) {
-    throw new Error("Gemini API error (HTTP " + response.status + "): " + resText);
+    var response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    var resText = await response.text();
+
+    if (!response.ok) {
+      // Only retry on 404 (model not found); propagate auth/quota errors immediately
+      if (response.status === 404 && ti < modelsToTry.length - 1) {
+        lastError = "Model " + tryModel + " not found (404), retrying with fallback...";
+        continue;
+      }
+      var errDetail = resText;
+      try {
+        var errJson = JSON.parse(resText);
+        errDetail = (errJson.error && errJson.error.message) || resText;
+      } catch (e) {}
+      throw new Error("Gemini API error (HTTP " + response.status + "): " + errDetail);
+    }
+
+    var data;
+    try {
+      data = JSON.parse(resText);
+    } catch (e) {
+      throw new Error("Failed to parse Gemini response: " + resText);
+    }
+
+    var candidate = data.candidates && data.candidates[0];
+    if (candidate && candidate.content && candidate.content.parts && candidate.content.parts[0] && candidate.content.parts[0].text) {
+      return candidate.content.parts[0].text;
+    }
+
+    if (data.promptFeedback && data.promptFeedback.blockReason) {
+      throw new Error("Gemini blocked content: " + data.promptFeedback.blockReason);
+    }
+
+    throw new Error("Gemini returned an empty response.");
   }
 
-  var data;
-  try {
-    data = JSON.parse(resText);
-  } catch (e) {
-    throw new Error("Failed to parse Gemini response: " + resText);
-  }
-
-  var candidate = data.candidates && data.candidates[0];
-  if (candidate && candidate.content && candidate.content.parts && candidate.content.parts[0] && candidate.content.parts[0].text) {
-    return candidate.content.parts[0].text;
-  }
-
-  if (data.promptFeedback && data.promptFeedback.blockReason) {
-    throw new Error("Gemini blocked content: " + data.promptFeedback.blockReason);
-  }
-
-  throw new Error("Gemini returned an empty response.");
+  throw new Error(lastError || "Gemini call failed.");
 }
 
 // ── Cloudflare Worker Entrypoint ───────────────────────────────────────────────
@@ -327,6 +344,21 @@ export default {
         server_has_gemini_key: Boolean(settingsKey),
         has_key: Boolean(settingsKey),
         key_source: settingsKey ? "server_secret" : "none",
+      });
+    }
+
+    // ── 2b. Debug endpoint — shows env key names (NOT values) for diagnosis ──
+    if (path === "/api/debug") {
+      var envKeysList = [];
+      if (env && typeof env === "object") {
+        try { envKeysList = Object.keys(env); } catch (e) {}
+      }
+      var resolvedKey = resolveApiKey(request, env, null);
+      return jsonResponse({
+        env_keys: envKeysList,
+        has_resolved_key: Boolean(resolvedKey),
+        key_prefix: resolvedKey ? resolvedKey.slice(0, 8) + "..." : "none",
+        default_model: DEFAULT_MODEL,
       });
     }
 

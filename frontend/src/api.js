@@ -44,7 +44,7 @@ const SETTINGS_KEY = "kodigo_device_settings";
 
 export const DEFAULT_SETTINGS = {
   provider: "gemini",
-  model_name: "gemini-2.0-flash",
+  model_name: "gemini-3.5-flash-lite",
   ollama_url: "http://localhost:11434",
   cloud_api_key: "",
   key_mode: "free", // "free" = built-in free tier, "custom" = user custom key
@@ -62,9 +62,9 @@ export function getLocalSettings() {
       const parsed = JSON.parse(raw);
       const merged = { ...DEFAULT_SETTINGS, ...parsed };
 
-      // Default to gemini-2.0-flash for free tier
-      if (!merged.model_name || merged.model_name === "gemini-2.0-flash" || ((merged.key_mode === "free" || !merged.cloud_api_key) && merged.provider === "gemini")) {
-        merged.model_name = "gemini-2.0-flash";
+      // Default to gemini-3.5-flash-lite for free tier
+      if (!merged.model_name || merged.model_name === "gemini-3.5-flash-lite" || ((merged.key_mode === "free" || !merged.cloud_api_key) && merged.provider === "gemini")) {
+        merged.model_name = "gemini-3.5-flash-lite";
       }
 
       return merged;
