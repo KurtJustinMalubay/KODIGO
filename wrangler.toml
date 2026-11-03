@@ -1,4 +1,4 @@
 name = "kodigo-backend"
-main = "backend/index.js"
+main = "index.js"
 compatibility_date = "2024-11-01"
 workers_dev = true
