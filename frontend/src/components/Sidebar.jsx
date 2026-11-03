@@ -132,27 +132,14 @@ export default function Sidebar({
                   KODIGO MENU
                 </span>
               </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onSettings) onSettings();
-                    if (onClose) onClose();
-                  }}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                  title="Settings"
-                >
-                  <Settings size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                  title="Close menu"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Close menu"
+              >
+                <X size={18} />
+              </button>
             </div>
           )}
 
@@ -294,63 +281,46 @@ export default function Sidebar({
 
         {/* Expanded View */}
         {open ? (
-          <>
-            <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-4">
-              {Object.keys(groups).length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">
-                  {query
-                    ? "No matching conversations found."
-                    : viewMode === "tutor"
-                    ? "No tutor sessions yet. Start one!"
-                    : "No chats yet. Start one!"}
-                </div>
-              ) : (
-                Object.entries(groups).map(([groupName, list]) => (
-                  <div key={groupName} className="space-y-1">
-                    <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      {groupName === "Pinned" ? (
-                        <>
-                          <Pin size={11} className="text-indigo-400" />
-                          <span className="text-indigo-300">Pinned</span>
-                        </>
-                      ) : (
-                        <span>{groupName}</span>
-                      )}
-                      <span className="text-[10px] text-slate-500">({list.length})</span>
-                    </div>
-
-                    {list.map((chat) => (
-                      <ExpandedChatRow
-                        key={chat.id}
-                        chat={chat}
-                        active={chat.id === activeId}
-                        onSelect={onSelect}
-                        onDelete={onDelete}
-                        onTogglePin={onPin}
-                        onRename={onRename}
-                        onExport={onExport}
-                      />
-                    ))}
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-4 space-y-4">
+            {Object.keys(groups).length === 0 ? (
+              <div className="text-center py-8 text-xs text-slate-500">
+                {query
+                  ? "No matching conversations found."
+                  : viewMode === "tutor"
+                  ? "No tutor sessions yet. Start one!"
+                  : "No chats yet. Start one!"}
+              </div>
+            ) : (
+              Object.entries(groups).map(([groupName, list]) => (
+                <div key={groupName} className="space-y-1">
+                  <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    {groupName === "Pinned" ? (
+                      <>
+                        <Pin size={11} className="text-indigo-400" />
+                        <span className="text-indigo-300">Pinned</span>
+                      </>
+                    ) : (
+                      <span>{groupName}</span>
+                    )}
+                    <span className="text-[10px] text-slate-500">({list.length})</span>
                   </div>
-                ))
-              )}
-            </div>
 
-            {/* Settings footer — always visible at the bottom of the sidebar */}
-            <div className="shrink-0 p-3 border-t border-slate-800 bg-slate-900/90">
-              <button
-                type="button"
-                onClick={() => {
-                  if (onSettings) onSettings();
-                  if (onClose) onClose();
-                }}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/50 transition-all cursor-pointer text-sm font-semibold shadow-sm"
-              >
-                <Settings size={18} className="text-indigo-400 shrink-0" />
-                <span>Settings</span>
-              </button>
-            </div>
-          </>
+                  {list.map((chat) => (
+                    <ExpandedChatRow
+                      key={chat.id}
+                      chat={chat}
+                      active={chat.id === activeId}
+                      onSelect={onSelect}
+                      onDelete={onDelete}
+                      onTogglePin={onPin}
+                      onRename={onRename}
+                      onExport={onExport}
+                    />
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
         ) : (
           /* Minimized Dock Rail (PC only) */
           <div className="hidden md:flex flex-1 flex-col items-center py-2 overflow-y-auto gap-1.5 px-1">
@@ -372,15 +342,6 @@ export default function Sidebar({
                 onSelect={onSelect}
               />
             ))}
-            {/* Settings button in minimized dock rail */}
-            <button
-              type="button"
-              onClick={() => onSettings && onSettings()}
-              title="Settings"
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer mt-auto"
-            >
-              <Settings size={16} />
-            </button>
           </div>
         )}
       </aside>

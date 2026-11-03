@@ -498,7 +498,6 @@ export default function App() {
           onExport={exportChat}
           onImport={importChat}
           onClose={() => setSidebar(false)}
-          onSettings={() => openModal("settings")}
         />
         {viewMode === "tutor" ? (
           <TutorWorkspace
