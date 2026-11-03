@@ -1,44 +1,51 @@
 /**
  * KODIGO Cloudflare Worker Backend
- * 100% Native Cloudflare Worker (zero runtime dependencies, instant builds, zero cold starts)
+ * Native Cloudflare Worker — zero dependencies, instant cold starts.
+ *
+ * GEMINI_API_KEY must be set as a Cloudflare Worker Secret (dashboard → Settings → Variables).
+ * It is automatically injected into the `env` parameter of the fetch handler.
  */
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-custom-api-key, x-cloud-api-key, x-api-key, x-ai-provider, x-model-name, x-ollama-url, x-ocr-provider",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, x-custom-api-key, x-cloud-api-key, x-api-key, x-ai-provider, x-model-name, x-ollama-url, x-ocr-provider",
   "Access-Control-Max-Age": "86400",
 };
+
+// ── Default model ──────────────────────────────────────────────────────────────
+const DEFAULT_MODEL = "gemini-2.0-flash"; // Real model available on free tier
 
 // ── Curated Models ─────────────────────────────────────────────────────────────
 const CURATED_MODELS = {
   gemini: [
     {
-      id: "gemini-3.5-flash-lite",
-      name: "Gemini 3.5 Flash Lite",
+      id: "gemini-2.0-flash",
+      name: "Gemini 2.0 Flash",
       badge: "Recommended • Free Tier",
-      description: "Fastest, low-latency model optimized for quick queries, tutoring, and quizzes.",
+      description: "Fast, efficient model available on the free tier. Best for quick queries and quizzes.",
       is_recommended: true,
     },
     {
-      id: "gemini-3.8-flash",
-      name: "Gemini 3.8 Flash",
-      badge: "Most Capable",
-      description: "High-speed multimodal reasoning model with generous quota.",
-      is_recommended: false,
-    },
-    {
-      id: "gemini-2.5-flash",
-      name: "Gemini 2.5 Flash",
+      id: "gemini-2.0-flash-lite",
+      name: "Gemini 2.0 Flash Lite",
       badge: "Ultra Fast",
-      description: "Fast multimodal reasoning model.",
+      description: "Lightweight and fastest model, ideal for high-volume simple tasks.",
       is_recommended: false,
     },
     {
-      id: "gemini-2.5-pro",
-      name: "Gemini 2.5 Pro",
-      badge: "Deep Reasoning",
-      description: "High-accuracy reasoning, complex mathematics, and deep analysis.",
+      id: "gemini-1.5-flash",
+      name: "Gemini 1.5 Flash",
+      badge: "Stable",
+      description: "Reliable, large context window model.",
+      is_recommended: false,
+    },
+    {
+      id: "gemini-1.5-pro",
+      name: "Gemini 1.5 Pro",
+      badge: "Most Capable",
+      description: "Most capable model for complex reasoning and analysis.",
       is_recommended: false,
     },
   ],
@@ -69,7 +76,7 @@ const CURATED_MODELS = {
   ],
 };
 
-// ── Core System Prompts ────────────────────────────────────────────────────────
+// ── System Prompts ─────────────────────────────────────────────────────────────
 const QUIZ_SYS =
   "You are KODIGO, an AI quiz solver. " +
   "CRITICAL RULES: " +
@@ -94,11 +101,10 @@ const CHAT_SYS =
 
 const TUTOR_SYS =
   "You are KODIGO Tutor, a highly personalized, empathetic, and rigorous academic coach. " +
-  "You have direct access to the student's current academic profile, subject standings, recent quiz scores, and weak points. " +
-  "Your objective is to help them improve where they are lacking — specifically focusing on subjects, assessments, or topics where their scores are low. " +
+  "Your objective is to help students improve where they are lacking. " +
   "CRITICAL RULES: " +
-  "1. Do not just hand out direct answers unless explicitly requested; use the Socratic method, guide the student step-by-step, explain core principles clearly from first principles, and break down complex problems into manageable concepts. " +
-  "2. Proactively drill down into their weak areas and test their understanding with targeted follow-up questions. " +
+  "1. Do not just hand out direct answers unless explicitly requested; use the Socratic method, guide the student step-by-step, and explain core principles clearly. " +
+  "2. Proactively drill down into weak areas and test understanding with targeted follow-up questions. " +
   "3. Maintain a friendly, supportive, and professor-like tone. " +
   "4. Do NOT introduce yourself or say 'Hello, I'm Kodigo...' at the start of responses. Go straight to helping the student. " +
   "5. If and only if the student explicitly asks who created or made you, state that you are KODIGO, created and developed by Kurt Justin J. Malubay (SASHIMI24). " +
@@ -111,71 +117,69 @@ const TUTOR_SYS =
   "   - NEVER use \\\\ (double backslash) for line breaks in plain text — use a regular newline or bullet point instead.";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function jsonResponse(data, status = 200) {
+function jsonResponse(data, status) {
   return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...CORS_HEADERS,
+    status: status || 200,
+    headers: Object.assign({}, CORS_HEADERS, {
       "Content-Type": "application/json; charset=utf-8",
-    },
+    }),
   });
 }
 
-function errorResponse(detail, status = 500) {
+function errorResponse(detail, status) {
   return new Response(JSON.stringify({ detail: String(detail) }), {
-    status,
-    headers: {
-      ...CORS_HEADERS,
+    status: status || 500,
+    headers: Object.assign({}, CORS_HEADERS, {
       "Content-Type": "application/json; charset=utf-8",
-    },
+    }),
   });
 }
 
-function resolveApiKey(request, env, customKey = null) {
-  // 1. Custom key passed in payload
+/**
+ * Resolve the Gemini API key from multiple sources, in priority order:
+ *  1. Custom key passed in request payload (body.custom_api_key)
+ *  2. Custom key passed in request headers (x-custom-api-key, x-cloud-api-key, x-api-key)
+ *  3. Cloudflare Worker secret bound via `env` (GEMINI_API_KEY)
+ *
+ * NOTE: Cloudflare Workers do NOT have `process.env`. Secrets are only
+ *       available via the `env` parameter injected by the runtime.
+ */
+function resolveApiKey(request, env, customKey) {
+  // 1. Custom key passed in payload body
   if (customKey && typeof customKey === "string" && customKey.trim()) {
     return customKey.trim();
   }
 
-  // 2. HTTP Request headers (from user's device settings)
-  const headers = request.headers;
-  for (const h of ["x-custom-api-key", "x-cloud-api-key", "x-api-key"]) {
-    const val = headers.get(h);
-    if (val && val.trim()) return val.trim();
+  // 2. Custom key in request headers
+  var headerNames = ["x-custom-api-key", "x-cloud-api-key", "x-api-key"];
+  for (var i = 0; i < headerNames.length; i++) {
+    var headerVal = request.headers.get(headerNames[i]);
+    if (headerVal && headerVal.trim()) {
+      return headerVal.trim();
+    }
   }
 
-  // 3. Cloudflare Worker secrets or environment variables
+  // 3. Cloudflare Worker secrets (env is the ONLY way to access secrets in Workers)
   if (env && typeof env === "object") {
-    // Exact property matches
-    for (const k of [
-      "GEMINI_API_KEY",
-      "gemini_api_key",
-      "GOOGLE_API_KEY",
-      "google_api_key",
-      "API_KEY",
-    ]) {
-      const val = env[k];
-      if (val && typeof val === "string" && val.trim()) {
-        return val.trim();
+    // Try common key names (exact match first)
+    var keyNames = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "gemini_api_key", "google_api_key", "API_KEY"];
+    for (var j = 0; j < keyNames.length; j++) {
+      var envVal = env[keyNames[j]];
+      if (envVal && typeof envVal === "string" && envVal.trim()) {
+        return envVal.trim();
       }
     }
-    // Case-insensitive regex match across all keys on env
-    for (const [k, v] of Object.entries(env)) {
-      if (
-        /gemini.*api.*key|google.*api.*key/i.test(k) &&
-        typeof v === "string" &&
-        v.trim()
-      ) {
-        return v.trim();
-      }
-    }
-  }
 
-  // 4. Global process.env fallback
-  if (typeof process !== "undefined" && process.env) {
-    for (const k of ["GEMINI_API_KEY", "GOOGLE_API_KEY"]) {
-      const val = process.env[k];
-      if (val && typeof val === "string" && val.trim()) {
+    // Case-insensitive fallback across all env keys
+    var envEntries = Object.entries(env);
+    for (var k = 0; k < envEntries.length; k++) {
+      var key = envEntries[k][0];
+      var val = envEntries[k][1];
+      if (
+        /gemini.*api.*key|google.*api.*key/i.test(key) &&
+        typeof val === "string" &&
+        val.trim()
+      ) {
         return val.trim();
       }
     }
@@ -185,135 +189,129 @@ function resolveApiKey(request, env, customKey = null) {
 }
 
 async function parseBody(request) {
-  const contentType = (request.headers.get("content-type") || "").toLowerCase();
+  var contentType = (request.headers.get("content-type") || "").toLowerCase();
 
-  // Handle FormData / Multipart
   if (
     contentType.includes("multipart/form-data") ||
     contentType.includes("application/x-www-form-urlencoded")
   ) {
     try {
-      const formData = await request.formData();
-      const obj = {};
-      for (const [key, value] of formData.entries()) {
+      var formData = await request.formData();
+      var obj = {};
+      formData.forEach(function(value, key) {
         obj[key] = value;
-      }
+      });
       return obj;
     } catch (e) {
-      console.warn("Failed to parse formData body:", e);
+      console.warn("Failed to parse formData:", e);
     }
   }
 
-  // Handle JSON
   try {
     return await request.json();
-  } catch {
+  } catch (e1) {
     try {
-      const rawText = await request.text();
+      var rawText = await request.text();
       return rawText ? JSON.parse(rawText) : {};
-    } catch {
+    } catch (e2) {
       return {};
     }
   }
 }
 
-async function callGemini(apiKey, modelName, systemInstruction, contentsPayload, maxOutputTokens = 2048) {
-  let model = (modelName || "gemini-3.5-flash-lite").trim();
+/**
+ * Call the Gemini generateContent API.
+ * Safely handles models that do NOT support thinkingConfig.
+ */
+async function callGemini(apiKey, modelName, systemInstruction, contentsPayload, maxOutputTokens) {
+  var model = (modelName || DEFAULT_MODEL).trim();
   if (model.startsWith("models/")) {
     model = model.slice("models/".length);
   }
   if (!model) {
-    model = "gemini-3.5-flash-lite";
+    model = DEFAULT_MODEL;
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  var tokens = maxOutputTokens || 2048;
 
-  // Normalise contents to Gemini API format
-  let contents = [];
+  var url =
+    "https://generativelanguage.googleapis.com/v1beta/models/" +
+    encodeURIComponent(model) +
+    ":generateContent?key=" +
+    encodeURIComponent(apiKey);
+
+  // Normalise contents
+  var contents;
   if (Array.isArray(contentsPayload)) {
     contents = contentsPayload;
   } else if (typeof contentsPayload === "string") {
-    contents = [
-      {
-        role: "user",
-        parts: [{ text: contentsPayload }],
-      },
-    ];
+    contents = [{ role: "user", parts: [{ text: contentsPayload }] }];
   } else {
-    contents = [
-      {
-        role: "user",
-        parts: [{ text: String(contentsPayload || "Hello") }],
-      },
-    ];
+    contents = [{ role: "user", parts: [{ text: String(contentsPayload || "Hello") }] }];
   }
 
-  const body = {
-    contents,
-    generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: maxOutputTokens,
-      topP: 0.8,
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
-    },
+  // Build generation config — do NOT include thinkingConfig for non-thinking models
+  var generationConfig = {
+    temperature: 0.3,
+    maxOutputTokens: tokens,
+    topP: 0.8,
+  };
+
+  var body = {
+    contents: contents,
+    generationConfig: generationConfig,
   };
 
   if (systemInstruction) {
-    body.systemInstruction = {
-      parts: [{ text: String(systemInstruction) }],
-    };
+    body.systemInstruction = { parts: [{ text: String(systemInstruction) }] };
   }
 
-  const response = await fetch(url, {
+  var response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
-  const resText = await response.text();
+  var resText = await response.text();
+
   if (!response.ok) {
-    throw new Error(`Gemini API error (HTTP ${response.status}): ${resText}`);
+    throw new Error("Gemini API error (HTTP " + response.status + "): " + resText);
   }
 
-  let data;
+  var data;
   try {
     data = JSON.parse(resText);
-  } catch {
-    throw new Error(`Failed to parse Gemini response: ${resText}`);
+  } catch (e) {
+    throw new Error("Failed to parse Gemini response: " + resText);
   }
 
-  const candidate = data.candidates?.[0];
-  if (candidate?.content?.parts?.[0]?.text) {
+  var candidate = data.candidates && data.candidates[0];
+  if (candidate && candidate.content && candidate.content.parts && candidate.content.parts[0] && candidate.content.parts[0].text) {
     return candidate.content.parts[0].text;
   }
 
-  if (data.promptFeedback?.blockReason) {
-    throw new Error(`Gemini blocked content: ${data.promptFeedback.blockReason}`);
+  if (data.promptFeedback && data.promptFeedback.blockReason) {
+    throw new Error("Gemini blocked content: " + data.promptFeedback.blockReason);
   }
 
   throw new Error("Gemini returned an empty response.");
 }
 
-// ── Cloudflare Worker Main Entrypoint ──────────────────────────────────────────
+// ── Cloudflare Worker Entrypoint ───────────────────────────────────────────────
 export default {
   async fetch(request, env, ctx) {
-    const method = request.method.toUpperCase();
+    var method = request.method.toUpperCase();
 
     // CORS Preflight
     if (method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: CORS_HEADERS,
-      });
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    const url = new URL(request.url);
-    const path = url.pathname.replace(/\/+$/, "") || "/";
+    var url = new URL(request.url);
+    var path = url.pathname.replace(/\/+$/, "") || "/";
 
-    // 1. Health check
-    if (path === "/health" || path === "") {
+    // ── 1. Health check ──────────────────────────────────────────────────────
+    if (path === "/health" || path === "/" || path === "") {
       return jsonResponse({
         status: "ok",
         app: "KODIGO",
@@ -322,90 +320,87 @@ export default {
       });
     }
 
-    // 2. Server settings check (checks if GEMINI_API_KEY secret exists)
+    // ── 2. Server settings — tells frontend whether a built-in key exists ────
     if (path === "/api/settings") {
-      const key = resolveApiKey(request, env);
-      const envKeys = env ? Object.keys(env) : [];
+      var settingsKey = resolveApiKey(request, env, null);
       return jsonResponse({
-        server_has_gemini_key: Boolean(key),
-        server_has_openai_key: false,
-        has_key: Boolean(key),
-        env_keys: envKeys,
+        server_has_gemini_key: Boolean(settingsKey),
+        has_key: Boolean(settingsKey),
+        key_source: settingsKey ? "server_secret" : "none",
       });
     }
 
-    // 3. Models list & Verification: POST /api/models (or GET)
+    // ── 3. Models list & API key verification ────────────────────────────────
     if (path === "/api/models") {
-      let body = {};
+      var modelsBody = {};
       if (method === "POST") {
-        body = await parseBody(request);
+        modelsBody = await parseBody(request);
       }
 
-      const provider = (body.provider || "gemini").toLowerCase();
-      let key = (body.cloud_api_key || "").trim();
-      let isServerKey = false;
+      var provider = ((modelsBody.provider || "") + "").toLowerCase() || "gemini";
+      var customKey = ((modelsBody.cloud_api_key || "") + "").trim();
+      var isServerKey = false;
 
-      // Fall back to server key if in free mode or if key is empty
-      if (!key) {
-        const serverKey = resolveApiKey(request, env);
+      // If no custom key, try the server secret
+      if (!customKey) {
+        var serverKey = resolveApiKey(request, env, null);
         if (serverKey) {
-          key = serverKey;
+          customKey = serverKey;
           isServerKey = true;
         }
       }
 
-      // Gemini Verification
       if (provider === "gemini") {
-        if (!key) {
+        if (!customKey) {
           return jsonResponse({
             models: CURATED_MODELS.gemini,
             verified: false,
-            message:
-              "Showing recommended models. Enter your Google AI Studio API key and click 'Check Models' to verify your key.",
+            message: "Showing recommended models. Enter your Google AI Studio API key and click 'Check Models' to verify.",
           });
         }
 
         try {
-          const testUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(
-            key
-          )}`;
-          const testResp = await fetch(testUrl);
+          var testUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=" + encodeURIComponent(customKey);
+          var testResp = await fetch(testUrl);
 
           if (!testResp.ok) {
-            let errMsg = "API key verification failed.";
+            var errMsg = "API key verification failed.";
             try {
-              const errJson = await testResp.json();
-              errMsg = errJson.error?.message || errMsg;
-            } catch {}
+              var errJson = await testResp.json();
+              errMsg = (errJson.error && errJson.error.message) || errMsg;
+            } catch (e) {}
             return jsonResponse({
               models: CURATED_MODELS.gemini,
               verified: false,
-              message: `Google AI Studio: ${errMsg}`,
+              message: "Google AI Studio: " + errMsg,
             });
           }
 
-          const rawData = await testResp.json().catch(() => ({}));
-          const apiModels = rawData.models || [];
+          var rawData = {};
+          try { rawData = await testResp.json(); } catch (e) {}
+          var apiModels = rawData.models || [];
 
-          // Map active models from Google or return curated list
-          const activeList = [...CURATED_MODELS.gemini];
+          // Build active model list starting from our curated set
+          var activeList = CURATED_MODELS.gemini.slice();
 
-          // Add any other active 2.5/3.0+ models discovered from their account
-          for (const m of apiModels) {
-            const rawName = (m.name || "").replace("models/", "");
-            const lower = rawName.toLowerCase();
-            const methods = m.supportedGenerationMethods || [];
-            if (!methods.includes("generateContent")) continue;
+          for (var mi = 0; mi < apiModels.length; mi++) {
+            var m = apiModels[mi];
+            var rawName = (m.name || "").replace("models/", "");
+            var lower = rawName.toLowerCase();
+            var methods = m.supportedGenerationMethods || [];
+            if (methods.indexOf("generateContent") === -1) continue;
             if (
-              lower.includes("gemini-1.") ||
-              lower.includes("embedding") ||
-              lower.includes("aqa") ||
-              lower.includes("imagen")
-            ) {
-              continue;
-            }
+              lower.indexOf("embedding") !== -1 ||
+              lower.indexOf("aqa") !== -1 ||
+              lower.indexOf("imagen") !== -1 ||
+              lower.indexOf("tts") !== -1
+            ) continue;
 
-            if (!activeList.some((item) => item.id === rawName)) {
+            var alreadyExists = false;
+            for (var ai = 0; ai < activeList.length; ai++) {
+              if (activeList[ai].id === rawName) { alreadyExists = true; break; }
+            }
+            if (!alreadyExists) {
               activeList.push({
                 id: rawName,
                 name: m.displayName || rawName,
@@ -421,57 +416,47 @@ export default {
             verified: true,
             is_server_key: isServerKey,
             message: isServerKey
-              ? "🎉 Free Tier active! Verified using built-in server Gemini key."
-              : `Verified with Google AI Studio! Found ${activeList.length} active models for your API key.`,
+              ? "🎉 Free Tier active! Using built-in server Gemini key."
+              : "Verified with Google AI Studio! Found " + activeList.length + " active models for your API key.",
           });
-        } catch (err) {
+        } catch (verifyErr) {
           return jsonResponse({
             models: CURATED_MODELS.gemini,
             verified: false,
-            message: `Could not verify with Google AI Studio: ${err.message}`,
+            message: "Could not reach Google AI Studio: " + verifyErr.message,
           });
         }
       }
 
-      // OpenAI Verification
       if (provider === "openai") {
-        if (!key) {
+        if (!customKey) {
           return jsonResponse({
             models: CURATED_MODELS.openai,
             verified: false,
-            message:
-              "Showing recommended models. Enter your OpenAI API key and click 'Check Models' to test.",
+            message: "Enter your OpenAI API key and click 'Check Models' to verify.",
           });
         }
-
         try {
-          const testResp = await fetch("https://api.openai.com/v1/models", {
-            headers: { Authorization: `Bearer ${key}` },
+          var openaiResp = await fetch("https://api.openai.com/v1/models", {
+            headers: { Authorization: "Bearer " + customKey },
           });
-
-          if (!testResp.ok) {
-            return jsonResponse({
-              models: CURATED_MODELS.openai,
-              verified: false,
-              message: "OpenAI: API key verification failed.",
-            });
-          }
-
           return jsonResponse({
             models: CURATED_MODELS.openai,
-            verified: true,
-            message: "Verified with OpenAI! Your API key is active.",
+            verified: openaiResp.ok,
+            message: openaiResp.ok
+              ? "Verified with OpenAI! Your API key is active."
+              : "OpenAI: API key verification failed.",
           });
-        } catch (err) {
+        } catch (openaiErr) {
           return jsonResponse({
             models: CURATED_MODELS.openai,
             verified: false,
-            message: `Could not connect to OpenAI: ${err.message}`,
+            message: "Could not connect to OpenAI: " + openaiErr.message,
           });
         }
       }
 
-      // Ollama
+      // Ollama or unknown provider
       return jsonResponse({
         models: CURATED_MODELS.ollama,
         verified: true,
@@ -479,189 +464,173 @@ export default {
       });
     }
 
-    // 4. Standard Chat: POST /api/chat
+    // ── 4. Standard Chat: POST /api/chat ─────────────────────────────────────
     if (path === "/api/chat") {
       if (method !== "POST") return errorResponse("Method not allowed", 405);
 
-      const body = await parseBody(request);
-      const prompt = body.message || body.prompt || body.content || "";
-      if (!prompt) {
-        return errorResponse("Missing 'message' field in request body.", 400);
-      }
+      var chatBody = await parseBody(request);
+      var prompt = chatBody.message || chatBody.prompt || chatBody.content || "";
+      if (!prompt) return errorResponse("Missing 'message' field in request body.", 400);
 
-      const apiKey = resolveApiKey(request, env, body.custom_api_key);
-      if (!apiKey) {
+      var chatKey = resolveApiKey(request, env, chatBody.custom_api_key);
+      if (!chatKey) {
         return errorResponse(
-          "No API key provided. Please configure your Google Gemini API key in Settings or add GEMINI_API_KEY in Cloudflare Worker secrets.",
-          400
+          "No API key provided. Please configure your Google Gemini API key in Settings, or set GEMINI_API_KEY as a Cloudflare Worker secret.",
+          401
         );
       }
 
-      const modelName = request.headers.get("x-model-name") || "gemini-3.5-flash-lite";
+      var chatModel = request.headers.get("x-model-name") || DEFAULT_MODEL;
       try {
-        const reply = await callGemini(apiKey, modelName, CHAT_SYS, prompt, 1500);
-        return jsonResponse({ reply, content: reply });
-      } catch (err) {
-        return errorResponse(err.message, 500);
+        var chatReply = await callGemini(chatKey, chatModel, CHAT_SYS, prompt, 1500);
+        return jsonResponse({ reply: chatReply, content: chatReply });
+      } catch (chatErr) {
+        return errorResponse(chatErr.message, 500);
       }
     }
 
-    // 5. Messages endpoint: POST /api/chats/:id/messages
+    // ── 5. Messages endpoint: POST /api/chats/:id/messages ───────────────────
     if (/^\/api\/chats\/[^/]+\/messages$/.test(path)) {
       if (method !== "POST") return errorResponse("Method not allowed", 405);
 
-      const body = await parseBody(request);
-      const content = String(body.content || "").trim();
-      const mode = String(body.mode || "quiz").toLowerCase();
-      const ocrText = String(body.client_ocr_text || "").trim();
-      const contextText = String(body.context_text || "").trim();
-      const historyJson = body.history_json;
+      var msgBody = await parseBody(request);
+      var msgContent = String(msgBody.content || "").trim();
+      var msgMode = String(msgBody.mode || "quiz").toLowerCase();
+      var ocrText = String(msgBody.client_ocr_text || "").trim();
+      var contextText = String(msgBody.context_text || "").trim();
+      var historyJson = msgBody.history_json;
 
-      const apiKey = resolveApiKey(request, env);
-      if (!apiKey) {
+      // Resolve key — allow user's custom key from body too
+      var msgKey = resolveApiKey(request, env, msgBody.custom_api_key || msgBody.cloud_api_key);
+      if (!msgKey) {
         return errorResponse(
-          "No API key provided. Please configure your Google Gemini API key in Settings or set GEMINI_API_KEY in Cloudflare Worker secrets.",
-          400
+          "No API key provided. Please configure your Google Gemini API key in Settings, or set GEMINI_API_KEY as a Cloudflare Worker secret.",
+          401
         );
       }
 
-      // Build user prompt combining OCR and context
-      let promptText = content;
+      // Build prompt
+      var promptText = msgContent;
       if (ocrText) {
-        promptText = `${promptText}\n\n[Attached Extracted Text / Image Content]:\n${ocrText}`;
+        promptText = promptText + "\n\n[Attached Extracted Text / Image Content]:\n" + ocrText;
       }
       if (contextText) {
-        promptText = `[Reference Material & Academic Context]:\n${contextText}\n\n[User Query]:\n${promptText}`;
+        promptText = "[Reference Material & Academic Context]:\n" + contextText + "\n\n[User Query]:\n" + promptText;
       }
 
-      // Parse conversation history - limit to last 4 messages to save latency & tokens
-      let history = [];
+      // Parse conversation history — cap at last 4 turns for speed
+      var history = [];
       if (historyJson) {
         try {
           history = typeof historyJson === "string" ? JSON.parse(historyJson) : historyJson;
-        } catch {}
+        } catch (e) {}
       }
 
-      const contents = [];
+      var contents = [];
       if (Array.isArray(history)) {
-        for (const msg of history.slice(-4)) {
-          if (msg && msg.content) {
+        var slice = history.slice(-4);
+        for (var hi = 0; hi < slice.length; hi++) {
+          var hmsg = slice[hi];
+          if (hmsg && hmsg.content) {
             contents.push({
-              role: msg.role === "assistant" || msg.role === "ai" ? "model" : "user",
-              parts: [{ text: String(msg.content) }],
+              role: (hmsg.role === "assistant" || hmsg.role === "ai") ? "model" : "user",
+              parts: [{ text: String(hmsg.content) }],
             });
           }
         }
       }
-      contents.push({
-        role: "user",
-        parts: [{ text: promptText || "Hello" }],
-      });
+      contents.push({ role: "user", parts: [{ text: promptText || "Hello" }] });
 
-      const sysPrompt =
-        mode === "quiz" ? QUIZ_SYS : mode === "tutor" ? TUTOR_SYS : CHAT_SYS;
-      const modelName = request.headers.get("x-model-name") || "gemini-3.5-flash-lite";
-      const maxTokens = mode === "quiz" ? 512 : 1800; // Quiz only needs short answer, 3x faster response!
+      var sysPrompt = msgMode === "quiz" ? QUIZ_SYS : msgMode === "tutor" ? TUTOR_SYS : CHAT_SYS;
+      var msgModel = request.headers.get("x-model-name") || DEFAULT_MODEL;
+      var maxTok = msgMode === "quiz" ? 512 : 1800;
 
       try {
-        const reply = await callGemini(apiKey, modelName, sysPrompt, contents, maxTokens);
+        var msgReply = await callGemini(msgKey, msgModel, sysPrompt, contents, maxTok);
 
-        // Extract chat ID from path
-        const match = path.match(/^\/api\/chats\/([^/]+)\/messages$/);
-        const chatId = match ? match[1] : "1";
+        var pathMatch = path.match(/^\/api\/chats\/([^/]+)\/messages$/);
+        var chatId = pathMatch ? pathMatch[1] : "1";
+        var now = new Date().toISOString();
 
-        const now = new Date().toISOString();
-        const userMsg = {
+        var userMsg = {
           id: Date.now(),
           chat_id: chatId,
           sender: "user",
-          mode,
-          content,
+          mode: msgMode,
+          content: msgContent,
           image_path: null,
           created_at: now,
         };
-
-        const aiMsg = {
+        var aiMsg = {
           id: Date.now() + 1,
           chat_id: chatId,
           sender: "ai",
-          mode,
-          content: reply,
+          mode: msgMode,
+          content: msgReply,
           image_path: null,
           has_explanation: false,
           detailed_explanation: null,
           created_at: now,
         };
 
-        // Return full contract matching both legacy & modern frontend requirements
         return jsonResponse({
           user: userMsg,
           ai: aiMsg,
           id: aiMsg.id,
           chat_id: chatId,
           sender: "ai",
-          mode,
-          content: reply,
-          reply: reply,
+          mode: msgMode,
+          content: msgReply,
+          reply: msgReply,
         });
-      } catch (err) {
-        return errorResponse(err.message, 500);
+      } catch (msgErr) {
+        return errorResponse(msgErr.message, 500);
       }
     }
 
-    // 6. Detailed Explanation: POST /api/messages/:id/explain
+    // ── 6. Explanation: POST /api/messages/:id/explain ───────────────────────
     if (/^\/api\/messages\/[^/]+\/explain$/.test(path)) {
       if (method !== "POST") return errorResponse("Method not allowed", 405);
 
-      const body = await parseBody(request);
-      const questionContent = body.question_content || body.content || "";
-      const answerContent = body.answer_content || "";
-      const contextText = body.context_text || "";
+      var exBody = await parseBody(request);
+      var questionContent = exBody.question_content || exBody.content || "";
+      var answerContent = exBody.answer_content || "";
+      var exContextText = exBody.context_text || "";
 
-      const apiKey = resolveApiKey(request, env);
-      if (!apiKey) {
-        return errorResponse("No API key provided.", 400);
-      }
+      var exKey = resolveApiKey(request, env, exBody.custom_api_key || exBody.cloud_api_key);
+      if (!exKey) return errorResponse("No API key provided.", 401);
 
-      let explainPrompt =
+      var explainPrompt =
         "Provide a rigorous, step-by-step mathematical or logical explanation for the question and solution below.\n" +
         "MANDATORY FORMATTING RULES:\n" +
         "1. Use standard Markdown: **bold**, *italic*, numbered lists, bullet lists.\n" +
         "2. For ALL math, use LaTeX: $...$ for inline math and $$...$$ (on its own line) for block/display math.\n" +
-        "3. For matrices, systems of equations, and multi-line equations (\\begin{pmatrix}, \\begin{bmatrix}, \\begin{cases}, \\begin{aligned}), ALWAYS wrap in $$...$$ on their own lines, NEVER single $.\n" +
-        "4. NEVER nest delimiters: NEVER write $$ $...$ $$ or $ $$...$$ $.\n" +
+        "3. For matrices, systems of equations, and multi-line equations, ALWAYS wrap in $$...$$ on their own lines, NEVER single $.\n" +
+        "4. NEVER nest delimiters.\n" +
         "5. NEVER use \\\\ (double backslash) for line breaks in plain text.\n\n";
 
-      if (contextText) {
-        explainPrompt += `[Context & Academic Background]:\n${contextText}\n\n`;
+      if (exContextText) {
+        explainPrompt += "[Context & Academic Background]:\n" + exContextText + "\n\n";
       }
-      explainPrompt += `[Question]:\n${questionContent}\n\n[Answer]:\n${answerContent}`;
+      explainPrompt += "[Question]:\n" + questionContent + "\n\n[Answer]:\n" + answerContent;
 
-      const modelName = request.headers.get("x-model-name") || "gemini-3.5-flash-lite";
+      var exModel = request.headers.get("x-model-name") || DEFAULT_MODEL;
       try {
-        const reply = await callGemini(apiKey, modelName, CHAT_SYS, explainPrompt, 1500);
-        return jsonResponse({
-          explanation: reply,
-          detailed_explanation: reply,
-        });
-      } catch (err) {
-        return errorResponse(err.message, 500);
+        var exReply = await callGemini(exKey, exModel, CHAT_SYS, explainPrompt, 1500);
+        return jsonResponse({ explanation: exReply, detailed_explanation: exReply });
+      } catch (exErr) {
+        return errorResponse(exErr.message, 500);
       }
     }
 
-    // 7. Extract text
+    // ── 7. Extract text (client-side OCR handles this — stub endpoint) ────────
     if (path === "/api/extract-text") {
       return jsonResponse({ extracted_text: "" });
     }
 
-    // Fallback 404
+    // ── 404 ───────────────────────────────────────────────────────────────────
     return jsonResponse(
-      {
-        status: "ok",
-        app: "KODIGO",
-        runtime: "Cloudflare Worker",
-        message: `Endpoint not found: ${path}`,
-      },
+      { status: "not_found", app: "KODIGO", message: "Endpoint not found: " + path },
       404
     );
   },

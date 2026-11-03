@@ -10,8 +10,8 @@ export default function SetupWizard({ savedSettings, onComplete }) {
         : savedSettings.provider || "gemini",
     model_name:
       savedSettings.provider === "ollama"
-        ? "gemini-3.5-flash-lite"
-        : savedSettings.model_name || "gemini-3.5-flash-lite",
+        ? "gemini-2.0-flash"
+        : savedSettings.model_name || "gemini-2.0-flash",
     ollama_url: savedSettings.ollama_url || "http://localhost:11434",
     cloud_api_key: savedSettings.cloud_api_key || "",
     key_mode:
@@ -39,7 +39,7 @@ export default function SetupWizard({ savedSettings, onComplete }) {
         connection === "offline"
           ? "llama3"
           : current.provider === "ollama"
-          ? "gemini-3.5-flash-lite"
+          ? "gemini-2.0-flash"
           : current.model_name,
     }));
   };
