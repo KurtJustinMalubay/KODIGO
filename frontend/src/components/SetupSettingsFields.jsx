@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Lock } from "lucide-react";
 import { api } from "../api";
 
 const inputClass =
@@ -39,6 +40,16 @@ export default function SetupSettingsFields({
       m.includes("gemini-pro-vision")
     );
   };
+
+  const isFreeTier =
+    settings.provider === "gemini" &&
+    (settings.key_mode === "free" || (!settings.key_mode && !settings.cloud_api_key));
+
+  useEffect(() => {
+    if (isFreeTier && settings.model_name !== "gemini-3.8-flash") {
+      setSettings((s) => ({ ...s, model_name: "gemini-3.8-flash" }));
+    }
+  }, [isFreeTier, settings.model_name, setSettings]);
 
   const loadModels = async (keyOverride = null) => {
     setModelsBusy(true);
@@ -161,7 +172,11 @@ export default function SetupSettingsFields({
                 <button
                   type="button"
                   onClick={() => {
-                    setSettings((s) => ({ ...s, key_mode: "free" }));
+                    setSettings((s) => ({
+                      ...s,
+                      key_mode: "free",
+                      model_name: "gemini-3.8-flash",
+                    }));
                     loadModels("");
                   }}
                   className={`flex flex-col items-center justify-center p-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
@@ -291,45 +306,65 @@ export default function SetupSettingsFields({
       )}
 
       <Field label="Model Selection">
-        <div className="flex gap-2">
-          <select
-            className={`${inputClass} min-w-0 flex-1`}
-            value={useCustomModel ? "__custom__" : settings.model_name}
-            onChange={(event) => {
-              if (event.target.value === "__custom__") {
-                setUseCustomModel(true);
-              } else {
-                setUseCustomModel(false);
-                setSettings((current) => ({
-                  ...current,
-                  model_name: event.target.value,
-                }));
-              }
-            }}
-          >
-            {settings.model_name &&
-              !models.some((m) => m.id === settings.model_name) &&
-              !useCustomModel && (
-                <option value={settings.model_name}>
-                  {settings.model_name} (current)
+        {isFreeTier ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-200">
+              <Lock size={15} className="text-emerald-400 shrink-0" />
+              <span className="font-semibold text-slate-100 flex-1 truncate">
+                Gemini 3.8 Flash
+              </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-800/50 font-medium shrink-0">
+                Recommended • Free Tier
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 flex items-start gap-1 leading-relaxed">
+              <span>🔒</span>
+              <span>
+                Selection is locked to <strong>Gemini 3.8 Flash (Recommended)</strong> for Free Tier users. To choose a different model, switch to <strong>Custom API Key</strong> above.
+              </span>
+            </p>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <select
+              className={`${inputClass} min-w-0 flex-1`}
+              value={useCustomModel ? "__custom__" : settings.model_name}
+              onChange={(event) => {
+                if (event.target.value === "__custom__") {
+                  setUseCustomModel(true);
+                } else {
+                  setUseCustomModel(false);
+                  setSettings((current) => ({
+                    ...current,
+                    model_name: event.target.value,
+                  }));
+                }
+              }}
+            >
+              {settings.model_name &&
+                !models.some((m) => m.id === settings.model_name) &&
+                !useCustomModel && (
+                  <option value={settings.model_name}>
+                    {settings.model_name} (current)
+                  </option>
+                )}
+              {models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name} {model.badge ? `— [${model.badge}]` : ""}
                 </option>
-              )}
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name} {model.badge ? `— [${model.badge}]` : ""}
-              </option>
-            ))}
-            <option value="__custom__">Enter custom model ID…</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => loadModels()}
-            disabled={modelsBusy}
-            className="shrink-0 rounded-lg bg-slate-700 hover:bg-slate-600 px-3 text-xs disabled:opacity-50 transition-colors"
-          >
-            {modelsBusy ? "Loading…" : "Refresh"}
-          </button>
-        </div>
+              ))}
+              <option value="__custom__">Enter custom model ID…</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => loadModels()}
+              disabled={modelsBusy}
+              className="shrink-0 rounded-lg bg-slate-700 hover:bg-slate-600 px-3 text-xs disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              {modelsBusy ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+        )}
 
         {/* Selected model description */}
         {selectedModelMeta?.description && (
