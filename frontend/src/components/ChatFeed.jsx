@@ -12,7 +12,7 @@ import {
 import { api, resolveUrl } from "../api";
 import Md from "./Md";
 
-function AiMessage({ message }) {
+function AiMessage({ message, showTimestamps }) {
   const [explanations, setExplanations] = useState(
     message.detailed_explanation ? { all: message.detailed_explanation } : {}
   );
@@ -63,12 +63,22 @@ function AiMessage({ message }) {
   const pill =
     "flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-700 text-slate-200 disabled:opacity-50 cursor-pointer transition-colors shadow-sm select-none";
 
+  const timeFormatted = message.created_at
+    ? new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
+
   return (
     <>
       <div
         className={`border-l-4 ${color} bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed`}
       >
         <Md>{message.content}</Md>
+
+        {showTimestamps && timeFormatted && (
+          <div className="text-[10px] text-slate-500 text-right mt-1 opacity-70">
+            {timeFormatted}
+          </div>
+        )}
 
         {items.length > 0 && (
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3 pt-2.5 border-t border-slate-800/80">
@@ -230,9 +240,13 @@ function AiMessage({ message }) {
   );
 }
 
-function UserMessage({ message }) {
+function UserMessage({ message, showTimestamps }) {
   const isImage =
     message.image_path && /\.(png|jpe?g|webp|gif|bmp)$/i.test(message.image_path);
+  const timeFormatted = message.created_at
+    ? new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : null;
+
   return (
     <div className="self-end max-w-[92%] sm:max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-3.5 sm:px-4 py-2.5 text-sm shadow-sm leading-relaxed">
       {isImage && (
@@ -254,6 +268,11 @@ function UserMessage({ message }) {
       ) : (
         <div className="whitespace-pre-wrap">{message.content}</div>
       )}
+      {showTimestamps && timeFormatted && (
+        <div className="text-[10px] text-slate-400 text-right mt-1 opacity-70">
+          {timeFormatted}
+        </div>
+      )}
     </div>
   );
 }
@@ -264,6 +283,7 @@ export default function ChatFeed({
   loadingChat,
   loadingStatus,
   error,
+  showTimestamps = false,
 }) {
   const end = useRef(null);
   useEffect(() => {
@@ -308,9 +328,17 @@ export default function ChatFeed({
         )}
         {messages.map((message) =>
           message.sender === "user" ? (
-            <UserMessage key={message.id} message={message} />
+            <UserMessage
+              key={message.id}
+              message={message}
+              showTimestamps={showTimestamps}
+            />
           ) : (
-            <AiMessage key={message.id} message={message} />
+            <AiMessage
+              key={message.id}
+              message={message}
+              showTimestamps={showTimestamps}
+            />
           )
         )}
         {loading && (

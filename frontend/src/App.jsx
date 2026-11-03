@@ -459,6 +459,8 @@ export default function App() {
   const themeClass = useMemo(() => {
     if (settings?.theme === "amoled") return "bg-black text-slate-100";
     if (settings?.theme === "midnight") return "bg-[#0b0f19] text-slate-100";
+    if (settings?.theme === "light") return "bg-slate-50 text-slate-900";
+    if (settings?.theme === "warm-light") return "bg-[#fbf7ee] text-stone-900";
     return "bg-slate-950 text-slate-100";
   }, [settings?.theme]);
 
@@ -510,13 +512,20 @@ export default function App() {
             />
           </div>
         ) : (
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-950/80 border-r border-slate-700/60">
+          <main className={`flex-1 flex flex-col min-w-0 overflow-hidden border-r border-slate-700/60 ${
+            settings?.theme === "light"
+              ? "bg-slate-100/90 text-slate-900"
+              : settings?.theme === "warm-light"
+              ? "bg-[#f4efe4] text-stone-900"
+              : "bg-slate-950/80 text-slate-100"
+          }`}>
             <ChatFeed
               messages={messages}
               loading={loading}
               loadingChat={loadingChat}
               loadingStatus={loadingStatus}
               error={error}
+              showTimestamps={Boolean(settings?.show_timestamps)}
             />
             <InputBar
               mode={mode}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   AlertTriangle,
   Award,
@@ -6,11 +6,22 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Download,
+  FileSpreadsheet,
+  FileUp,
   GraduationCap,
+  Loader2,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import Modal from "./Modal";
+import {
+  exportAcademicRecords,
+  extractTextFromDocument,
+  importAcademicRecordsFile,
+  parseAcademicRecordsWithAI,
+} from "../utils/classRecordParser";
 
 const ASSESSMENT_TYPES = ["Quiz", "Activity", "Exam", "Assignment", "Project"];
 
@@ -27,6 +38,15 @@ export default function AcademicProfileModal({
   const [notes, setNotes] = useState("");
   const [assessments, setAssessments] = useState([]);
 
+  // Import / Export state
+  const [importing, setImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState("");
+  const [importError, setImportError] = useState("");
+  const [parsedPreview, setParsedPreview] = useState(null); // AI-parsed records awaiting confirmation
+  const [selectedPreview, setSelectedPreview] = useState({}); // which previewed records to import
+  const krecInputRef = useRef(null);
+  const docInputRef = useRef(null);
+
   // Assessment input fields
   const [assType, setAssType] = useState("Quiz");
   const [assTitle, setAssTitle] = useState("");
@@ -35,6 +55,58 @@ export default function AcademicProfileModal({
   const [assDate, setAssDate] = useState("");
 
   const [expandedId, setExpandedId] = useState(null);
+
+  // ── Import handlers ───────────────────────────────────────────────────────
+  const handleKrecImport = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImporting(true);
+    setImportError("");
+    setImportStatus("Reading .krec file…");
+    try {
+      const recs = await importAcademicRecordsFile(f);
+      for (const r of recs) await onSaveRecord(r);
+      setImportStatus(`✓ Imported ${recs.length} subject(s) from .krec`);
+    } catch (err) {
+      setImportError(err.message);
+      setImportStatus("");
+    } finally {
+      setImporting(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDocImport = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImporting(true);
+    setImportError("");
+    setImportStatus("Reading document…");
+    try {
+      const text = await extractTextFromDocument(f);
+      setImportStatus("AI is parsing subjects from your class record…");
+      const recs = await parseAcademicRecordsWithAI(text, f.name);
+      const sel = {};
+      recs.forEach((r) => { sel[r.id] = true; });
+      setParsedPreview(recs);
+      setSelectedPreview(sel);
+      setImportStatus("");
+    } catch (err) {
+      setImportError(err.message);
+      setImportStatus("");
+    } finally {
+      setImporting(false);
+      e.target.value = "";
+    }
+  };
+
+  const confirmPreviewImport = async () => {
+    const toImport = (parsedPreview || []).filter((r) => selectedPreview[r.id]);
+    for (const r of toImport) await onSaveRecord(r);
+    setImportStatus(`✓ Imported ${toImport.length} subject(s)`);
+    setParsedPreview(null);
+    setSelectedPreview({});
+  };
 
   const startNew = () => {
     setEditingId("new");
@@ -160,19 +232,109 @@ export default function AcademicProfileModal({
           </div>
         </div>
 
+        {/* Hidden file inputs */}
+        <input ref={krecInputRef} type="file" accept=".krec,.json" className="hidden" onChange={handleKrecImport} />
+        <input ref={docInputRef} type="file" accept=".xlsx,.xls,.csv,.pdf,.txt,.md" className="hidden" onChange={handleDocImport} />
+
         {/* Action Header */}
         {!editingId && (
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs text-slate-400 font-medium">
-              Your Subjects & Assessments
-            </span>
-            <button
-              type="button"
-              onClick={startNew}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
-            >
-              <Plus size={14} /> Add Subject
-            </button>
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-medium">Your Subjects & Assessments</span>
+              <button
+                type="button"
+                onClick={startNew}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+              >
+                <Plus size={14} /> Add Subject
+              </button>
+            </div>
+
+            {/* Import / Export row */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                disabled={importing}
+                onClick={() => docInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {importing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} className="text-purple-400" />}
+                AI Import (Excel/PDF)
+              </button>
+              <button
+                type="button"
+                disabled={importing}
+                onClick={() => krecInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <FileUp size={13} className="text-indigo-400" />
+                Import .krec
+              </button>
+              {records.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => exportAcademicRecords(records)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer ml-auto"
+                >
+                  <Download size={13} className="text-emerald-400" />
+                  Export .krec
+                </button>
+              )}
+            </div>
+
+            {/* Import status / error */}
+            {(importStatus || importError || importing) && (
+              <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${importError ? "bg-red-950/50 border border-red-800/40 text-red-300" : "bg-slate-800/80 border border-slate-700/60 text-slate-300"}`}>
+                {importing && <Loader2 size={12} className="animate-spin shrink-0 text-purple-400" />}
+                <span>{importError || importStatus}</span>
+              </div>
+            )}
+
+            {/* AI Parsed Preview Confirmation */}
+            {parsedPreview && parsedPreview.length > 0 && (
+              <div className="p-3 rounded-xl bg-slate-800/90 border border-purple-500/40 space-y-2.5 animate-[fadeIn_.2s]">
+                <div className="flex items-center gap-2 text-xs font-semibold text-purple-300">
+                  <Sparkles size={13} /> AI detected {parsedPreview.length} subject(s) — select which to import:
+                </div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+                  {parsedPreview.map((r) => (
+                    <label key={r.id} className="flex items-start gap-2.5 p-2 rounded-lg bg-slate-900/80 border border-slate-700/70 cursor-pointer hover:border-purple-500/40 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={!!selectedPreview[r.id]}
+                        onChange={(e) => setSelectedPreview((prev) => ({ ...prev, [r.id]: e.target.checked }))}
+                        className="mt-0.5 accent-purple-500 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-slate-100 truncate">{r.subject}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {r.assessments?.length || 0} assessment(s)
+                          {r.current_standing ? ` · Standing: ${r.current_standing}` : ""}
+                          {r.target_grade ? ` · Target: ${r.target_grade}` : ""}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setParsedPreview(null); setSelectedPreview({}); }}
+                    className="flex-1 py-1.5 text-xs text-slate-400 hover:text-slate-200 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmPreviewImport}
+                    disabled={!Object.values(selectedPreview).some(Boolean)}
+                    className="flex-1 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                  >
+                    Import Selected
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

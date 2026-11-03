@@ -40,6 +40,8 @@ export default function GeneralSettingsFields({ settings, setSettings }) {
           <option value="dark">Slate Dark (Default)</option>
           <option value="amoled">AMOLED Pitch Black</option>
           <option value="midnight">Midnight Indigo</option>
+          <option value="light">Light Crisp (Clean White)</option>
+          <option value="warm-light">Light Warm (Paper / Sepia)</option>
         </select>
       </Field>
 

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Award,
+  BookOpen,
   GraduationCap,
   Loader2,
   Send,
@@ -30,6 +31,7 @@ export default function TutorWorkspace({
   const [loadingStatus, setLoadingStatus] = useState("");
   const [input, setInput] = useState("");
   const [file, setFile] = useState(null);
+  const [subjectFilter, setSubjectFilter] = useState("all");
   const fileInputRef = useRef(null);
   const endRef = useRef(null);
   const activeIdRef = useRef(currentSessionId);
@@ -123,7 +125,7 @@ export default function TutorWorkspace({
 
     try {
       setLoadingStatus("Coach is thinking…");
-      const result = await api.send(targetSessionId, text, "tutor", processedFile, clientOcrText);
+      const result = await api.send(targetSessionId, text, "tutor", processedFile, clientOcrText, subjectFilter);
       setMessages((prev) => {
         const filtered = prev.filter((m) => m.id !== tempId);
         return [...filtered, result.user, result.ai];
@@ -245,6 +247,24 @@ export default function TutorWorkspace({
           >
             View
           </button>
+        </div>
+      )}
+
+      {/* Subject Context Filter */}
+      {records.length > 0 && (
+        <div className="px-3 sm:px-4 py-2 border-b border-slate-800 bg-slate-900/60 flex items-center gap-2 shrink-0">
+          <BookOpen size={13} className="text-indigo-400 shrink-0" />
+          <span className="text-[11px] text-slate-400 font-medium shrink-0">Context:</span>
+          <select
+            value={subjectFilter}
+            onChange={(e) => setSubjectFilter(e.target.value)}
+            className="flex-1 max-w-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-purple-500 cursor-pointer"
+          >
+            <option value="all">All Subjects</option>
+            {records.map((r) => (
+              <option key={r.id} value={r.id}>{r.subject}</option>
+            ))}
+          </select>
         </div>
       )}
 
