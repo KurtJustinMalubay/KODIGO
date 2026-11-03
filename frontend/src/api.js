@@ -232,11 +232,17 @@ export const api = {
       created_at: new Date().toISOString(),
     });
 
+    const aiContent =
+      result?.ai?.content ||
+      result?.content ||
+      result?.reply ||
+      result?.message ||
+      "";
     const savedAi = await localDB.addMessage({
       chat_id: id,
       sender: "ai",
-      mode: result.ai?.mode || mode,
-      content: result.ai?.content || "",
+      mode: result?.ai?.mode || result?.mode || mode,
+      content: aiContent,
       created_at: new Date().toISOString(),
     });
 
