@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = "kodigo_local_db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -38,6 +38,11 @@ function openDB() {
             keyPath: "id",
           });
           refsStore.createIndex("scope", "scope", { unique: false });
+        }
+
+        // Academic Records store for Tutor
+        if (!db.objectStoreNames.contains("academic_records")) {
+          db.createObjectStore("academic_records", { keyPath: "id" });
         }
       };
 
@@ -98,12 +103,13 @@ export const localDB = {
     });
   },
 
-  async createChat(title = "New Chat") {
+  async createChat(title = "New Chat", isTutor = false) {
     const db = await openDB();
     const newChat = {
       id: Date.now(),
       title: title.slice(0, 50),
       is_pinned: false,
+      is_tutor: !!isTutor,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -317,5 +323,113 @@ export const localDB = {
       .map((r) => `[${r.filename}]\n${r.extracted_text || ""}`)
       .join("\n\n")
       .slice(0, 12000);
+  },
+
+  // === ACADEMIC RECORDS & TUTOR COACH ===
+  async getAcademicRecords() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      if (!db.objectStoreNames.contains("academic_records")) {
+        resolve([]);
+        return;
+      }
+      const tx = db.transaction("academic_records", "readonly");
+      const store = tx.objectStore("academic_records");
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  },
+
+  async saveAcademicRecord(record) {
+    const db = await openDB();
+    const data = {
+      id:
+        record.id ||
+        `record_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      subject: record.subject?.trim() || "Untitled Subject",
+      target_grade: record.target_grade || "",
+      current_standing: record.current_standing || "",
+      assessments: Array.isArray(record.assessments) ? record.assessments : [],
+      notes: record.notes || "",
+      updated_at: new Date().toISOString(),
+    };
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("academic_records", "readwrite");
+      const req = tx.objectStore("academic_records").put(data);
+      req.onsuccess = () => resolve(data);
+      req.onerror = () => reject(req.error);
+    });
+  },
+
+  async deleteAcademicRecord(id) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("academic_records", "readwrite");
+      const req = tx.objectStore("academic_records").delete(id);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    });
+  },
+
+  async buildAcademicContext() {
+    const records = await this.getAcademicRecords();
+    if (!records || records.length === 0) return "";
+
+    let context = "=== STUDENT ACADEMIC PROFILE & GRADE HISTORY ===\n";
+    const weakAreas = [];
+
+    records.forEach((rec, idx) => {
+      context += `\nSubject ${idx + 1}: ${rec.subject}\n`;
+      if (rec.current_standing)
+        context += `  Current Standing / Grade: ${rec.current_standing}\n`;
+      if (rec.target_grade)
+        context += `  Target Grade: ${rec.target_grade}\n`;
+      if (rec.notes)
+        context += `  Student Notes / Struggle Areas: ${rec.notes}\n`;
+
+      if (rec.assessments && rec.assessments.length > 0) {
+        context += "  Assessment Scores:\n";
+        rec.assessments.forEach((ass) => {
+          const score = Number(ass.score) || 0;
+          const total = Number(ass.total) || 0;
+          const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+          context += `    - ${ass.title || "Assessment"}: ${score}/${total} (${pct}%)${
+            ass.date ? ` on ${ass.date}` : ""
+          }\n`;
+
+          if (pct < 75 || (total > 0 && score / total < 0.75)) {
+            weakAreas.push(
+              `${rec.subject} -> ${ass.title} (${score}/${total}, ${pct}%)`
+            );
+          }
+        });
+      }
+    });
+
+    if (weakAreas.length > 0) {
+      context += "\n=== PRIORITY WEAK POINTS (HIGH PRIORITY IMPROVEMENT NEEDED) ===\n";
+      context +=
+        "The student specifically scored low or struggled on the following assessments/topics. Prioritize conceptual reinforcement, Socratic questioning, and step-by-step problem solving on these topics:\n";
+      weakAreas.forEach((w) => {
+        context += `- ${w}\n`;
+      });
+    }
+
+    return context;
+  },
+
+  // === TUTOR SESSION CHAT ISOLATION ===
+  async getTutorMessages() {
+    return await this.getMessages("tutor_session");
+  },
+
+  async addTutorMessage(msg) {
+    return await this.addMessage({ ...msg, chat_id: "tutor_session" });
+  },
+
+  async clearTutorMessages() {
+    return await this.deleteChat("tutor_session");
   },
 };

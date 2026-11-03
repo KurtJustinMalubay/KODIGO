@@ -98,8 +98,12 @@ export const api = {
     return await localDB.getChats();
   },
 
-  newChat: async (title = "New Chat") => {
-    return await localDB.createChat(title);
+  newChat: async (title = "New Chat", isTutor = false) => {
+    return await localDB.createChat(title, isTutor);
+  },
+
+  newTutorChat: async (title = "New Tutoring Session") => {
+    return await localDB.createChat(title, true);
   },
 
   pinChat: async (id, is_pinned) => {
@@ -128,8 +132,16 @@ export const api = {
       content: m.content,
     }));
 
-    // 2. Gather active references context text from local database
-    const contextText = await localDB.buildContextText(id);
+    // 2. Gather active references and academic profile context from local database
+    let contextText = await localDB.buildContextText(id);
+    if (mode === "tutor") {
+      const academicCtx = await localDB.buildAcademicContext();
+      if (academicCtx) {
+        contextText = contextText
+          ? `${academicCtx}\n\n${contextText}`
+          : academicCtx;
+      }
+    }
 
     // 3. Prepare payload for Render stateless AI compute
     const f = new FormData();
@@ -181,7 +193,7 @@ export const api = {
 
     // Update chat title if it's the first message
     const chat = await localDB.getChat(id);
-    if (chat && (chat.title === "New Chat" || !chat.title)) {
+    if (chat && (chat.title === "New Chat" || chat.title === "New Tutor Session" || !chat.title)) {
       const newTitle = (content || "Image Question").slice(0, 40);
       await localDB.updateChat(id, {
         title: newTitle,
@@ -379,5 +391,21 @@ export const api = {
       ollama_url: options.ollama_url || local?.ollama_url || "http://localhost:11434",
     };
     return req("/api/models", json("POST", payload));
+  },
+
+  // === ACADEMIC PROFILES & TUTORING ===
+  academic: {
+    getRecords: () => localDB.getAcademicRecords(),
+    saveRecord: (r) => localDB.saveAcademicRecord(r),
+    deleteRecord: (id) => localDB.deleteAcademicRecord(id),
+    getContext: () => localDB.buildAcademicContext(),
+  },
+
+  tutor: {
+    getMessages: () => localDB.getTutorMessages(),
+    send: async (content, file, clientOcrText = "") => {
+      return await api.send("tutor_session", content, "tutor", file, clientOcrText);
+    },
+    clear: () => localDB.clearTutorMessages(),
   },
 };
