@@ -3,16 +3,16 @@ import {
   AlertTriangle,
   Award,
   BookMarked,
-  Calendar,
   Check,
   ChevronDown,
   ChevronUp,
   GraduationCap,
   Plus,
   Trash2,
-  X,
 } from "lucide-react";
 import Modal from "./Modal";
+
+const ASSESSMENT_TYPES = ["Quiz", "Activity", "Exam", "Assignment", "Project"];
 
 export default function AcademicProfileModal({
   records = [],
@@ -28,6 +28,7 @@ export default function AcademicProfileModal({
   const [assessments, setAssessments] = useState([]);
 
   // Assessment input fields
+  const [assType, setAssType] = useState("Quiz");
   const [assTitle, setAssTitle] = useState("");
   const [assScore, setAssScore] = useState("");
   const [assTotal, setAssTotal] = useState("");
@@ -42,6 +43,7 @@ export default function AcademicProfileModal({
     setCurrentStanding("");
     setNotes("");
     setAssessments([]);
+    setAssType("Quiz");
     setAssTitle("");
     setAssScore("");
     setAssTotal("");
@@ -55,6 +57,7 @@ export default function AcademicProfileModal({
     setCurrentStanding(rec.current_standing || "");
     setNotes(rec.notes || "");
     setAssessments(rec.assessments || []);
+    setAssType("Quiz");
     setAssTitle("");
     setAssScore("");
     setAssTotal("");
@@ -66,14 +69,20 @@ export default function AcademicProfileModal({
   };
 
   const addAssessment = () => {
-    if (!assTitle.trim()) return;
-    const scoreNum = Number(assScore) || 0;
-    const totalNum = Number(assTotal) || 0;
+    const trimmedTitle = assTitle.trim();
+    if (!trimmedTitle) return;
+    if (assScore === "" || assTotal === "") return;
+
+    const scoreNum = Number(assScore);
+    const totalNum = Number(assTotal);
+    if (isNaN(scoreNum) || isNaN(totalNum) || totalNum <= 0) return;
+
     const newAss = {
       id: `ass_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-      title: assTitle.trim(),
+      type: assType,
+      title: trimmedTitle,
       score: scoreNum,
-      total: totalNum > 0 ? totalNum : 100,
+      total: totalNum,
       date: assDate || new Date().toISOString().slice(0, 10),
     };
     setAssessments((prev) => [...prev, newAss]);
@@ -126,7 +135,7 @@ export default function AcademicProfileModal({
 
   return (
     <Modal title="Academic Profile & Performance Hub" onClose={onClose}>
-      <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+      <div className="space-y-4 max-h-[78vh] overflow-y-auto pr-1">
         {/* Performance Overview Banner */}
         <div className="grid grid-cols-3 gap-2.5 p-3 rounded-xl bg-slate-800/80 border border-slate-700/80 text-center">
           <div className="p-2 bg-slate-900/60 rounded-lg border border-slate-800">
@@ -171,7 +180,7 @@ export default function AcademicProfileModal({
         {editingId && (
           <form
             onSubmit={handleSave}
-            className="p-4 rounded-xl bg-slate-800/90 border border-indigo-500/40 space-y-3.5 animate-[fadeIn_.2s]"
+            className="p-4 rounded-xl bg-slate-800/90 border border-indigo-500/40 space-y-4 animate-[fadeIn_.2s]"
           >
             <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
               <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -197,7 +206,7 @@ export default function AcademicProfileModal({
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="e.g., Data Structures and Algorithms"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
               />
             </div>
 
@@ -210,7 +219,7 @@ export default function AcademicProfileModal({
                   type="text"
                   value={currentStanding}
                   onChange={(e) => setCurrentStanding(e.target.value)}
-                  placeholder="e.g., 2.25 or 78%"
+                  placeholder="e.g., 2.25, 4.3, or 78%"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -223,7 +232,7 @@ export default function AcademicProfileModal({
                   type="text"
                   value={targetGrade}
                   onChange={(e) => setTargetGrade(e.target.value)}
-                  placeholder="e.g., 1.0 or 95%"
+                  placeholder="e.g., 1.0, 5.0, or 95%"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
                 />
               </div>
@@ -237,21 +246,23 @@ export default function AcademicProfileModal({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
-                placeholder="e.g., Struggling with tree recursion, graph traversals, and dynamic programming."
+                placeholder="e.g., I struggle with turning my logic into code, tree recursion, and balancing."
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
               />
             </div>
 
             {/* Assessment Input Section */}
-            <div className="pt-2 border-t border-slate-700/60 space-y-2">
-              <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                <Award size={13} className="text-indigo-400" />
-                Quizzes, Assignments & Exams ({assessments.length})
-              </label>
+            <div className="pt-2 border-t border-slate-700/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                  <Award size={14} className="text-indigo-400" />
+                  Quizzes, Activities & Exams ({assessments.length})
+                </label>
+              </div>
 
               {/* Added Assessments List */}
               {assessments.length > 0 && (
-                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
                   {assessments.map((ass, idx) => {
                     const score = Number(ass.score) || 0;
                     const total = Number(ass.total) || 1;
@@ -261,7 +272,7 @@ export default function AcademicProfileModal({
                     return (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border border-slate-700/60 text-xs"
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-900/90 border border-slate-700/70 text-xs"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           {isWeak ? (
@@ -269,17 +280,20 @@ export default function AcademicProfileModal({
                           ) : (
                             <Check size={13} className="text-emerald-400 shrink-0" />
                           )}
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] uppercase font-semibold shrink-0">
+                            {ass.type || "Quiz"}
+                          </span>
                           <span className="text-slate-200 truncate font-medium">
                             {ass.title}
                           </span>
-                          <span className="text-slate-400 font-mono">
+                          <span className="text-slate-400 font-mono shrink-0">
                             {score}/{total} ({pct}%)
                           </span>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeAssessment(idx)}
-                          className="text-slate-400 hover:text-red-400 p-1"
+                          className="text-slate-400 hover:text-red-400 p-1 transition-colors ml-2"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -289,50 +303,121 @@ export default function AcademicProfileModal({
                 </div>
               )}
 
-              {/* Assessment Input Bar */}
-              <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/50 space-y-2">
-                <div className="text-[11px] text-slate-400">Add an Assessment Score:</div>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                  <input
-                    type="text"
-                    value={assTitle}
-                    onChange={(e) => setAssTitle(e.target.value)}
-                    placeholder="Title (e.g. Quiz 2 - Trees)"
-                    className="sm:col-span-2 bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                  />
+              {/* Redesigned Roomy Assessment Input Panel */}
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-indigo-300">
+                    Add Quiz or Activity:
+                  </span>
+                  {/* Assessment Type Pills */}
                   <div className="flex items-center gap-1">
+                    {ASSESSMENT_TYPES.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setAssType(type)}
+                        className={`text-[10px] px-2 py-0.5 rounded-md font-medium transition-colors cursor-pointer ${
+                          assType === type
+                            ? "bg-indigo-600 text-white font-semibold shadow-sm"
+                            : "bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700"
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Title Input */}
+                <input
+                  type="text"
+                  value={assTitle}
+                  onChange={(e) => setAssTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addAssessment();
+                    }
+                  }}
+                  placeholder={`Title (e.g. ${assType} 2 - Binary Trees)`}
+                  className="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+
+                {/* Score / Total row + percentage preview */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
+                      Score
+                    </label>
                     <input
                       type="number"
+                      min="0"
+                      step="any"
                       value={assScore}
                       onChange={(e) => setAssScore(e.target.value)}
-                      placeholder="Score"
-                      className="w-16 bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 text-center"
-                    />
-                    <span className="text-slate-500">/</span>
-                    <input
-                      type="number"
-                      value={assTotal}
-                      onChange={(e) => setAssTotal(e.target.value)}
-                      placeholder="Total"
-                      className="w-16 bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 text-center"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addAssessment();
+                        }
+                      }}
+                      placeholder="e.g. 18"
+                      className="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 text-center"
                     />
                   </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">
+                      Total Points
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="any"
+                      value={assTotal}
+                      onChange={(e) => setAssTotal(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addAssessment();
+                        }
+                      }}
+                      placeholder="e.g. 20"
+                      className="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-semibold focus:outline-none focus:border-indigo-500 text-center"
+                    />
+                  </div>
+                </div>
+
+                {/* Percentage preview + Add button */}
+                <div className="flex items-center gap-2">
+                  {assScore !== "" && assTotal !== "" && Number(assTotal) > 0 && (
+                    <div
+                      className={`text-sm font-mono px-3 py-2 rounded-lg font-bold ${
+                        Math.round((Number(assScore) / Number(assTotal)) * 100) < 75
+                          ? "bg-amber-950/60 text-amber-300 border border-amber-800/40"
+                          : "bg-emerald-950/60 text-emerald-300 border border-emerald-800/40"
+                      }`}
+                    >
+                      {Math.round((Number(assScore) / Number(assTotal)) * 100)}%
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={addAssessment}
-                    className="flex items-center justify-center gap-1 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-md py-1 px-2.5 text-xs font-medium cursor-pointer transition-colors"
+                    disabled={!assTitle.trim() || assScore === "" || assTotal === ""}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg py-2 px-3.5 text-xs font-semibold shadow-sm transition-colors cursor-pointer"
                   >
-                    <Plus size={13} /> Add
+                    <Plus size={14} /> Add {assType}
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-700/60">
               <button
                 type="button"
                 onClick={cancelEdit}
-                className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200"
+                className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 cursor-pointer"
               >
                 Cancel
               </button>
@@ -354,7 +439,7 @@ export default function AcademicProfileModal({
               No subjects added yet
             </div>
             <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-              Add your current college or high school subjects and past quiz scores so
+              Add your current college or high school subjects and past quiz/activity scores so
               KODIGO Tutor can proactively coach you on your weak points.
             </p>
             <button
@@ -484,6 +569,9 @@ export default function AcademicProfileModal({
                                   className="flex items-center justify-between p-2 rounded bg-slate-900 border border-slate-800"
                                 >
                                   <div className="flex items-center gap-1.5 truncate">
+                                    <span className="text-[10px] bg-slate-800 text-slate-400 px-1 py-0.5 rounded uppercase font-semibold">
+                                      {a.type || "Quiz"}
+                                    </span>
                                     {isWeak ? (
                                       <span className="text-[10px] bg-red-950 text-red-400 px-1.5 py-0.5 rounded border border-red-800 font-semibold">
                                         Needs Review

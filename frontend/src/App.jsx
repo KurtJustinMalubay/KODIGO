@@ -429,12 +429,33 @@ export default function App() {
           onViewModeChange={setViewMode}
           weakSpotsCount={weakSpotsCount}
           onSelect={(id) => {
-            setViewMode("chats");
+            const chat = chats.find((c) => String(c.id) === String(id));
+            setViewMode(chat?.is_tutor ? "tutor" : "chats");
             select(id);
           }}
-          onNew={() => {
-            setViewMode("chats");
-            newChat();
+          onNew={async () => {
+            if (viewMode === "tutor") {
+              try {
+                const chat = await api.newTutorChat("New Tutor Session");
+                if (chat) {
+                  activeChatIdRef.current = chat.id;
+                  setActiveId(chat.id);
+                  try {
+                    localStorage.setItem("kodigo_active_chat_id", String(chat.id));
+                  } catch {}
+                  setMessages([]);
+                  messagesCacheRef.current.set(chat.id, []);
+                  setError("");
+                  if (window.innerWidth < 768) setSidebar(false);
+                  await refreshChats(chat.id);
+                }
+              } catch (err) {
+                setError(err.message);
+              }
+            } else {
+              setViewMode("chats");
+              newChat();
+            }
           }}
           onDelete={deleteChat}
           onPin={pinChat}
@@ -445,9 +466,11 @@ export default function App() {
         />
         {viewMode === "tutor" ? (
           <TutorWorkspace
+            activeId={activeId}
             records={academicRecords}
             onOpenProfile={() => setModal("academic")}
             loadingSettings={loading}
+            onRefreshChats={refreshChats}
           />
         ) : (
           <main className="flex-1 flex flex-col min-w-0 bg-slate-950/80">

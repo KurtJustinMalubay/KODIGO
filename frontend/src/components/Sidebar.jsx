@@ -64,11 +64,21 @@ export default function Sidebar({
   const [query, setQuery] = useState("");
   const fileInputRef = useRef(null);
 
+  const normalCount = useMemo(() => chats.filter((c) => !c.is_tutor).length, [chats]);
+  const tutorCount = useMemo(() => chats.filter((c) => !!c.is_tutor).length, [chats]);
+
   const filteredChats = useMemo(() => {
-    if (!query.trim()) return chats;
+    const isTutorMode = viewMode === "tutor";
+    const modeFiltered = chats.filter((c) =>
+      isTutorMode ? !!c.is_tutor : !c.is_tutor
+    );
+
+    if (!query.trim()) return modeFiltered;
     const lower = query.toLowerCase();
-    return chats.filter((chat) => (chat.title || "").toLowerCase().includes(lower));
-  }, [chats, query]);
+    return modeFiltered.filter((chat) =>
+      (chat.title || "").toLowerCase().includes(lower)
+    );
+  }, [chats, query, viewMode]);
 
   const groups = useMemo(() => groupChats(filteredChats), [filteredChats]);
 
@@ -157,7 +167,7 @@ export default function Sidebar({
                 }`}
               >
                 <MessageSquare size={14} />
-                <span>Chats</span>
+                <span>Chats ({normalCount})</span>
               </button>
 
               <button
@@ -165,12 +175,12 @@ export default function Sidebar({
                 onClick={() => onViewModeChange && onViewModeChange("tutor")}
                 className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all relative cursor-pointer ${
                   viewMode === "tutor"
-                    ? "bg-indigo-600 text-white font-semibold shadow-sm"
+                    ? "bg-purple-600 text-white font-semibold shadow-sm"
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
                 }`}
               >
                 <GraduationCap size={15} />
-                <span>AI Tutor</span>
+                <span>AI Tutor ({tutorCount})</span>
                 {weakSpotsCount > 0 && (
                   <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-2 right-2.5" />
                 )}
@@ -179,19 +189,27 @@ export default function Sidebar({
           )}
 
           <div className="flex items-center gap-1.5 w-full">
-            {/* New Chat Button */}
+            {/* New Chat / New Tutor Session Button */}
             <button
               type="button"
               onClick={onNew}
-              title="New Chat"
-              className={`flex items-center gap-2.5 bg-indigo-600/90 hover:bg-indigo-600 active:bg-indigo-700 text-white font-medium rounded-xl transition-all shadow-sm shadow-indigo-500/20 cursor-pointer ${
+              title={viewMode === "tutor" ? "New AI Tutor Session" : "New Normal Chat"}
+              className={`flex items-center gap-2.5 text-white font-medium rounded-xl transition-all shadow-sm cursor-pointer ${
+                viewMode === "tutor"
+                  ? "bg-purple-600 hover:bg-purple-500 active:bg-purple-700 shadow-purple-500/20"
+                  : "bg-indigo-600/90 hover:bg-indigo-600 active:bg-indigo-700 shadow-indigo-500/20"
+              } ${
                 open
                   ? "flex-1 px-3.5 py-2.5 text-sm justify-start min-h-[42px]"
                   : "w-10 h-10 justify-center rounded-xl p-0"
               }`}
             >
               <Plus size={18} className="shrink-0" />
-              {open && <span>New Chat</span>}
+              {open && (
+                <span>
+                  {viewMode === "tutor" ? "New Tutor Session" : "New Chat"}
+                </span>
+              )}
             </button>
 
             {/* Import Chat Button */}
@@ -215,7 +233,11 @@ export default function Sidebar({
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search conversations…"
+                placeholder={
+                  viewMode === "tutor"
+                    ? "Search tutor sessions…"
+                    : "Search normal chats…"
+                }
                 className="bg-transparent outline-none text-xs text-slate-100 w-full placeholder-slate-500"
               />
               {query && (
@@ -236,7 +258,11 @@ export default function Sidebar({
           <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-4">
             {Object.keys(groups).length === 0 ? (
               <div className="text-center py-8 text-xs text-slate-500">
-                {query ? "No matching chats found." : "No chats yet. Start one!"}
+                {query
+                  ? "No matching conversations found."
+                  : viewMode === "tutor"
+                  ? "No tutor sessions yet. Start one!"
+                  : "No chats yet. Start one!"}
               </div>
             ) : (
               Object.entries(groups).map(([groupName, list]) => (
@@ -282,7 +308,7 @@ export default function Sidebar({
               <FileUp size={16} />
             </button>
 
-            {chats.slice(0, 15).map((chat) => (
+            {filteredChats.slice(0, 15).map((chat) => (
               <MinimizedChatButton
                 key={chat.id}
                 chat={chat}
@@ -389,6 +415,8 @@ const ExpandedChatRow = memo(function ExpandedChatRow({
     >
       {chat.is_pinned ? (
         <Pin size={14} className="shrink-0 text-indigo-400" />
+      ) : chat.is_tutor ? (
+        <GraduationCap size={15} className="shrink-0 text-purple-400" />
       ) : (
         <MessageSquare size={14} className="shrink-0 text-slate-400 group-hover:text-slate-300" />
       )}
@@ -426,12 +454,17 @@ const ExpandedChatRow = memo(function ExpandedChatRow({
           </button>
         </div>
       ) : (
-        <span
+        <div
           onDoubleClick={handleStartRename}
-          className="truncate flex-1 pointer-events-none"
+          className="truncate flex-1 pointer-events-none flex items-center gap-1.5"
         >
-          {chat.title}
-        </span>
+          {chat.is_tutor && (
+            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-950/80 text-purple-300 border border-purple-800/40 shrink-0">
+              TUTOR
+            </span>
+          )}
+          <span className="truncate">{chat.title}</span>
+        </div>
       )}
 
       {/* Action Buttons: Visible on mobile if active, or on desktop hover */}
@@ -511,6 +544,11 @@ const MinimizedChatButton = memo(function MinimizedChatButton({
       >
         {chat.is_pinned ? (
           <Pin size={16} className={active ? "text-white" : "text-indigo-400"} />
+        ) : chat.is_tutor ? (
+          <GraduationCap
+            size={16}
+            className={active ? "text-white" : "text-purple-400"}
+          />
         ) : (
           <MessageSquare size={16} />
         )}
@@ -523,7 +561,18 @@ const MinimizedChatButton = memo(function MinimizedChatButton({
 
       {/* Floating Tooltip */}
       <div className="pointer-events-none absolute left-14 z-50 ml-1 hidden group-hover:flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-slate-100 shadow-xl">
-        {chat.is_pinned && <Pin size={11} className="text-indigo-400 shrink-0" />}
+        {chat.is_tutor ? (
+          <GraduationCap size={13} className="text-purple-400 shrink-0" />
+        ) : chat.is_pinned ? (
+          <Pin size={11} className="text-indigo-400 shrink-0" />
+        ) : (
+          <MessageSquare size={12} className="text-slate-400 shrink-0" />
+        )}
+        {chat.is_tutor && (
+          <span className="text-[10px] bg-purple-950 text-purple-300 font-semibold px-1 rounded">
+            TUTOR
+          </span>
+        )}
         <span className="font-medium max-w-[200px] truncate">{chat.title}</span>
       </div>
     </div>

@@ -103,12 +103,13 @@ export const localDB = {
     });
   },
 
-  async createChat(title = "New Chat") {
+  async createChat(title = "New Chat", isTutor = false) {
     const db = await openDB();
     const newChat = {
       id: Date.now(),
       title: title.slice(0, 50),
       is_pinned: false,
+      is_tutor: !!isTutor,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

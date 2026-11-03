@@ -98,8 +98,12 @@ export const api = {
     return await localDB.getChats();
   },
 
-  newChat: async (title = "New Chat") => {
-    return await localDB.createChat(title);
+  newChat: async (title = "New Chat", isTutor = false) => {
+    return await localDB.createChat(title, isTutor);
+  },
+
+  newTutorChat: async (title = "New Tutoring Session") => {
+    return await localDB.createChat(title, true);
   },
 
   pinChat: async (id, is_pinned) => {
@@ -189,7 +193,7 @@ export const api = {
 
     // Update chat title if it's the first message
     const chat = await localDB.getChat(id);
-    if (chat && (chat.title === "New Chat" || !chat.title)) {
+    if (chat && (chat.title === "New Chat" || chat.title === "New Tutor Session" || !chat.title)) {
       const newTitle = (content || "Image Question").slice(0, 40);
       await localDB.updateChat(id, {
         title: newTitle,
