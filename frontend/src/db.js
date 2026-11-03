@@ -76,8 +76,24 @@ export const localDB = {
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction("chats", "readonly");
-      const req = tx.objectStore("chats").get(id);
-      req.onsuccess = () => resolve(req.result || null);
+      const store = tx.objectStore("chats");
+      const req = store.get(id);
+      req.onsuccess = () => {
+        if (req.result) {
+          resolve(req.result);
+          return;
+        }
+        // Fallback for number/string ID type difference
+        const altId =
+          typeof id === "string" && !isNaN(id) ? Number(id) : String(id);
+        if (altId !== id) {
+          const altReq = store.get(altId);
+          altReq.onsuccess = () => resolve(altReq.result || null);
+          altReq.onerror = () => resolve(null);
+        } else {
+          resolve(null);
+        }
+      };
       req.onerror = () => reject(req.error);
     });
   },
@@ -120,22 +136,32 @@ export const localDB = {
 
   async deleteChat(id) {
     const db = await openDB();
-    // Delete chat and associated messages
+    const altId =
+      typeof id === "string" && !isNaN(id) ? Number(id) : String(id);
+
     return new Promise((resolve, reject) => {
       const tx = db.transaction(["chats", "messages"], "readwrite");
       tx.objectStore("chats").delete(id);
+      if (altId !== id) {
+        tx.objectStore("chats").delete(altId);
+      }
 
       const msgStore = tx.objectStore("messages");
       const index = msgStore.index("chat_id");
-      const req = index.openCursor(IDBKeyRange.only(id));
 
-      req.onsuccess = (e) => {
-        const cursor = e.target.result;
-        if (cursor) {
-          msgStore.delete(cursor.primaryKey);
-          cursor.continue();
-        }
+      const deleteForId = (targetKey) => {
+        const req = index.openCursor(IDBKeyRange.only(targetKey));
+        req.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            msgStore.delete(cursor.primaryKey);
+            cursor.continue();
+          }
+        };
       };
+
+      deleteForId(id);
+      if (altId !== id) deleteForId(altId);
 
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => reject(tx.error);
@@ -149,10 +175,25 @@ export const localDB = {
       const tx = db.transaction("messages", "readonly");
       const store = tx.objectStore("messages");
       const index = store.index("chat_id");
+      const altId =
+        typeof chatId === "string" && !isNaN(chatId)
+          ? Number(chatId)
+          : String(chatId);
+
       const req = index.getAll(IDBKeyRange.only(chatId));
 
       req.onsuccess = () => {
-        const list = req.result || [];
+        let list = req.result || [];
+        if (list.length === 0 && altId !== chatId) {
+          const altReq = index.getAll(IDBKeyRange.only(altId));
+          altReq.onsuccess = () => {
+            const altList = altReq.result || [];
+            altList.sort((a, b) => (a.id > b.id ? 1 : -1));
+            resolve(altList);
+          };
+          altReq.onerror = () => resolve([]);
+          return;
+        }
         list.sort((a, b) => (a.id > b.id ? 1 : -1));
         resolve(list);
       };
@@ -162,8 +203,10 @@ export const localDB = {
 
   async addMessage(msg) {
     const db = await openDB();
+    const uniqueId =
+      msg.id || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const record = {
-      id: msg.id || Date.now(),
+      id: uniqueId,
       chat_id: msg.chat_id,
       sender: msg.sender || "user",
       mode: msg.mode || "quiz",
