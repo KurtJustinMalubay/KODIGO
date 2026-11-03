@@ -373,11 +373,25 @@ export const localDB = {
     });
   },
 
-  async buildAcademicContext() {
-    const records = await this.getAcademicRecords();
+  async buildAcademicContext(filterSubject = null) {
+    let records = await this.getAcademicRecords();
     if (!records || records.length === 0) return "";
 
+    if (filterSubject && filterSubject !== "all") {
+      const filtered = records.filter(
+        (r) =>
+          r.id === filterSubject ||
+          (r.subject || "").toLowerCase() === filterSubject.toLowerCase()
+      );
+      if (filtered.length > 0) {
+        records = filtered;
+      }
+    }
+
     let context = "=== STUDENT ACADEMIC PROFILE & GRADE HISTORY ===\n";
+    if (filterSubject && filterSubject !== "all") {
+      context += `(Active Focus Subject: ${records.map((r) => r.subject).join(", ")})\n`;
+    }
     const weakAreas = [];
 
     records.forEach((rec, idx) => {

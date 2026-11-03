@@ -144,7 +144,7 @@ export const api = {
   },
 
   // === AI INFERENCE (Stateless Backend Call + Local Persistence) ===
-  send: async (id, content, mode, file, clientOcrText = "") => {
+  send: async (id, content, mode, file, clientOcrText = "", subjectFilter = null) => {
     // 1. Gather recent conversation history from local database
     const localMsgs = await localDB.getMessages(id);
     const history = localMsgs.slice(-10).map((m) => ({
@@ -155,7 +155,7 @@ export const api = {
     // 2. Gather active references and academic profile context from local database
     let contextText = await localDB.buildContextText(id);
     if (mode === "tutor") {
-      const academicCtx = await localDB.buildAcademicContext();
+      const academicCtx = await localDB.buildAcademicContext(subjectFilter);
       if (academicCtx) {
         contextText = contextText
           ? `${academicCtx}\n\n${contextText}`
@@ -437,13 +437,13 @@ export const api = {
     getRecords: () => localDB.getAcademicRecords(),
     saveRecord: (r) => localDB.saveAcademicRecord(r),
     deleteRecord: (id) => localDB.deleteAcademicRecord(id),
-    getContext: () => localDB.buildAcademicContext(),
+    getContext: (filterSubject = null) => localDB.buildAcademicContext(filterSubject),
   },
 
   tutor: {
     getMessages: () => localDB.getTutorMessages(),
-    send: async (content, file, clientOcrText = "") => {
-      return await api.send("tutor_session", content, "tutor", file, clientOcrText);
+    send: async (content, file, clientOcrText = "", subjectFilter = null) => {
+      return await api.send("tutor_session", content, "tutor", file, clientOcrText, subjectFilter);
     },
     clear: () => localDB.clearTutorMessages(),
   },
