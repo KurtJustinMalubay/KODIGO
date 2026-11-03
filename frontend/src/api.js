@@ -4,7 +4,7 @@ import { extractTextOnDevice } from "./utils/imageOptimizer";
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  "https://kodigo-backend.sashimiprods.workers.dev"
+  "https://kodigo-backend.justinkurt837.workers.dev"
 ).replace(/\/$/, "");
 
 export const API_BASE = API_BASE_URL;
