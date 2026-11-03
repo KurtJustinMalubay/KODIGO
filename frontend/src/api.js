@@ -25,7 +25,19 @@ export function getLocalSettings() {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      const merged = { ...DEFAULT_SETTINGS, ...parsed };
+
+      // Migrate stale model names (pre-v3.0 or old 3.5 model) back to recommended
+      const staleModel =
+        merged.model_name &&
+        (merged.model_name.includes("gemini-1.") ||
+          merged.model_name.includes("gemini-2.") ||
+          merged.model_name.includes("3.5"));
+      if (staleModel && (merged.key_mode === "free" || !merged.cloud_api_key)) {
+        merged.model_name = "gemini-3.8-flash";
+      }
+
+      return merged;
     }
   } catch (e) {
     console.warn("Failed to load settings from localStorage:", e);

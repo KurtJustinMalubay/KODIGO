@@ -102,7 +102,7 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed md:static z-30 h-full bg-slate-900 border-r border-slate-800 transition-all duration-300 ease-in-out flex flex-col select-none ${
+        className={`fixed md:static z-30 h-full bg-slate-900 border-r border-slate-800 transition-all duration-300 ease-in-out flex flex-col select-none overflow-hidden ${
           open ? "w-72 max-w-[85vw]" : "w-0 md:w-16"
         }`}
       >

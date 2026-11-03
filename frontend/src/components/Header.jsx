@@ -7,6 +7,11 @@ export default function Header({ onToggle, settings, onModal }) {
     (settings?.key_mode === "free" || (!settings?.key_mode && !settings?.cloud_api_key));
 
   const modelDisplay = settings?.model_name || "gemini-3.8-flash";
+  // Show only the version+variant part, e.g. "gemini-3.8-flash" → "3.8 Flash"
+  const modelShort = modelDisplay
+    .replace(/^gemini-/, "")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <header className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 h-14 border-b border-slate-800 bg-slate-950/95 backdrop-blur-md select-none shrink-0 z-10">
@@ -37,7 +42,7 @@ export default function Header({ onToggle, settings, onModal }) {
         <div className="flex items-center gap-1">
           <span
             title={`Active AI: ${modelDisplay} (${isFreeTier ? "Free Tier" : "Custom Key"})`}
-            className={`text-[11px] font-medium rounded-full px-2 py-0.5 flex items-center gap-1 max-w-[110px] sm:max-w-[200px] truncate ${
+            className={`text-[11px] font-medium rounded-full px-2.5 py-1 flex items-center gap-1.5 max-w-[130px] sm:max-w-[220px] truncate ${
               isFreeTier
                 ? "bg-emerald-950/70 text-emerald-300 border border-emerald-800/50"
                 : "bg-indigo-950/70 text-indigo-300 border border-indigo-800/50"
@@ -47,8 +52,7 @@ export default function Header({ onToggle, settings, onModal }) {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
             )}
             <span className="truncate">
-              {isFreeTier ? "Free · " : ""}
-              {modelDisplay.replace(/^gemini-/, "")}
+              {isFreeTier ? "Free · " : ""}{modelShort}
             </span>
           </span>
         </div>

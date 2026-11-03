@@ -3,13 +3,13 @@ import { Lock } from "lucide-react";
 import { api } from "../api";
 
 const inputClass =
-  "w-full bg-slate-800 rounded-lg px-3 py-2 text-sm outline-none border border-slate-700 focus:border-indigo-500 transition-colors";
+  "w-full bg-slate-800 rounded-lg px-3 py-2.5 text-sm outline-none border border-slate-700 focus:border-indigo-500 transition-colors min-h-[44px]";
 
 function Field({ label, hint, children }) {
   return (
-    <label className="block mb-3.5 text-xs text-slate-400">
-      <span className="font-medium text-slate-300">{label}</span>
-      <div className="mt-1">{children}</div>
+    <label className="block text-xs text-slate-400">
+      <span className="font-medium text-slate-300 text-[13px]">{label}</span>
+      <div className="mt-1.5">{children}</div>
       {hint && <p className="mt-1 text-slate-500 text-[11px] leading-relaxed">{hint}</p>}
     </label>
   );
@@ -126,7 +126,7 @@ export default function SetupSettingsFields({
   const selectedModelMeta = models.find((m) => m.id === settings.model_name);
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-4">
       {connectionMode === "offline" ? (
         <Field label="AI Provider">
           <div className={`${inputClass} text-slate-300`}>Ollama (Offline)</div>
@@ -135,14 +135,14 @@ export default function SetupSettingsFields({
         <Field label="AI Provider">
           <select className={inputClass} value={settings.provider} onChange={changeProvider}>
             {connectionMode !== "online" && <option value="ollama">Ollama (Offline)</option>}
-            <option value="gemini">Gemini (Online — Generous Free Tier)</option>
+            <option value="gemini">Gemini (Free Tier Available)</option>
             <option value="openai">OpenAI (Online)</option>
           </select>
         </Field>
       )}
 
       {settings.provider === "ollama" ? (
-        <Field label="Ollama Endpoint URL" hint="Address where Ollama is running on your machine.">
+        <Field label="Ollama Endpoint URL">
           <div className="flex gap-2">
             <input
               className={`${inputClass} min-w-0 flex-1`}
@@ -179,14 +179,14 @@ export default function SetupSettingsFields({
                     }));
                     loadModels("");
                   }}
-                  className={`flex flex-col items-center justify-center p-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  className={`flex flex-col items-center justify-center p-3 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                     (settings.key_mode || "free") === "free"
                       ? "bg-emerald-600 text-white shadow-sm font-semibold"
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
                   }`}
                 >
-                  <span>Free Tier (Default)</span>
-                  <span className="text-[10px] opacity-80 font-normal">Use built-in server key</span>
+                  <span>Free Tier</span>
+                  <span className="text-[10px] opacity-80 font-normal">Built-in key</span>
                 </button>
 
                 <button
@@ -195,23 +195,21 @@ export default function SetupSettingsFields({
                     setSettings((s) => ({ ...s, key_mode: "custom" }));
                     if (settings.cloud_api_key) loadModels(settings.cloud_api_key);
                   }}
-                  className={`flex flex-col items-center justify-center p-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  className={`flex flex-col items-center justify-center p-3 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                     settings.key_mode === "custom"
                       ? "bg-indigo-600 text-white shadow-sm font-semibold"
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
                   }`}
                 >
-                  <span>Custom API Key</span>
-                  <span className="text-[10px] opacity-80 font-normal">Enter your own key</span>
+                  <span>Custom Key</span>
+                  <span className="text-[10px] opacity-80 font-normal">Your own key</span>
                 </button>
               </div>
 
               {(settings.key_mode || "free") === "free" && (
-                <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2">
-                  <span className="text-emerald-400 font-bold shrink-0 mt-0.5">✓</span>
-                  <div className="leading-relaxed">
-                    <strong>Free Tier Active!</strong> Powered by the shared built-in test key set up on Render. No personal key, credit card, or setup needed.
-                  </div>
+                <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                  <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                  <span>Free Tier active — no account or key required.</span>
                 </div>
               )}
             </div>
@@ -221,7 +219,6 @@ export default function SetupSettingsFields({
           {(settings.provider === "openai" || settings.key_mode === "custom") && (
             <Field
               label={`${settings.provider === "gemini" ? "Google AI Studio" : "OpenAI"} API Key`}
-              hint="Your API key is saved strictly on this device's browser and is never stored in the shared database."
             >
               <div className="flex gap-2">
                 <input
@@ -317,11 +314,9 @@ export default function SetupSettingsFields({
                 Recommended • Free Tier
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 flex items-start gap-1 leading-relaxed">
+            <p className="text-[10px] text-slate-500 flex items-center gap-1">
               <span>🔒</span>
-              <span>
-                Selection is locked to <strong>Gemini 3.8 Flash (Recommended)</strong> for Free Tier users. To choose a different model, switch to <strong>Custom API Key</strong> above.
-              </span>
+              <span>Locked to Free Tier. Switch to Custom Key to change.</span>
             </p>
           </div>
         ) : (
@@ -366,14 +361,6 @@ export default function SetupSettingsFields({
           </div>
         )}
 
-        {/* Selected model description */}
-        {selectedModelMeta?.description && (
-          <div className="mt-1.5 flex items-start gap-1.5 text-[11px] text-slate-400">
-            <span className="text-indigo-400 font-medium shrink-0">About:</span>
-            <span>{selectedModelMeta.description}</span>
-          </div>
-        )}
-
         {/* Deprecated model detection & 1-click upgrade */}
         {isModelDeprecated(settings.model_name) && (
           <div className="mt-2 p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 flex items-center justify-between gap-2">
@@ -408,20 +395,10 @@ export default function SetupSettingsFields({
           value={settings.ocr_provider || "paddleocr"}
           onChange={set("ocr_provider")}
         >
-          <option value="paddleocr">PaddleOCR (Offline Deep Learning — Recommended)</option>
+          <option value="paddleocr">PaddleOCR (Recommended, Offline)</option>
           <option value="tesseract">Tesseract (Offline)</option>
           <option value="online">Online OCR (OCR.space)</option>
         </select>
-        {(!settings.ocr_provider || settings.ocr_provider === "paddleocr") && (
-          <p className="mt-1 text-xs text-emerald-400">
-            ✓ Fast on-device client compression & deep learning OCR. No OCR API key needed.
-          </p>
-        )}
-        {settings.ocr_provider === "tesseract" && (
-          <p className="mt-1 text-xs text-slate-500">
-            Runs locally; uses Tesseract engine.
-          </p>
-        )}
         {settings.ocr_provider === "online" && (
           <div className="mt-2">
             <input
