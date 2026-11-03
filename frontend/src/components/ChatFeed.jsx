@@ -7,10 +7,13 @@ import {
   MessageSquare,
   Minimize2,
   Sparkles,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { api, resolveUrl } from "../api";
 import Md from "./Md";
+import { useTextToSpeech } from "../hooks/useSpeech";
 
 function AiMessage({ message, showTimestamps }) {
   const [explanations, setExplanations] = useState(
@@ -19,6 +22,7 @@ function AiMessage({ message, showTimestamps }) {
   const [minimized, setMinimized] = useState({});
   const [maximizedKey, setMaximizedKey] = useState(null);
   const [busy, setBusy] = useState(null);
+  const { speaking, speak, stop: stopTTS, supported: ttsSupported } = useTextToSpeech();
 
   const items =
     message.mode === "quiz"
@@ -74,11 +78,29 @@ function AiMessage({ message, showTimestamps }) {
       >
         <Md>{message.content}</Md>
 
-        {showTimestamps && timeFormatted && (
-          <div className="text-[10px] text-slate-500 text-right mt-1 opacity-70">
-            {timeFormatted}
-          </div>
-        )}
+        {/* TTS + Timestamp row */}
+        <div className="flex items-center justify-between mt-1.5">
+          {ttsSupported && (
+            <button
+              type="button"
+              onClick={() => speaking ? stopTTS() : speak(message.content)}
+              title={speaking ? "Stop reading" : "Read aloud"}
+              className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg transition-colors cursor-pointer ${
+                speaking
+                  ? "text-indigo-300 bg-indigo-950/60 hover:bg-indigo-950"
+                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/60"
+              }`}
+            >
+              {speaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+              <span className="hidden sm:inline">{speaking ? "Stop" : "Read"}</span>
+            </button>
+          )}
+          {showTimestamps && timeFormatted && (
+            <div className="text-[10px] text-slate-500 text-right opacity-70 ml-auto">
+              {timeFormatted}
+            </div>
+          )}
+        </div>
 
         {items.length > 0 && (
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-3 pt-2.5 border-t border-slate-800/80">

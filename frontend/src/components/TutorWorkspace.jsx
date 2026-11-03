@@ -5,14 +5,19 @@ import {
   BookOpen,
   GraduationCap,
   Loader2,
+  Mic,
+  MicOff,
   Send,
   Sparkles,
   Trash2,
   Upload,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { api, resolveUrl } from "../api";
 import { compressImage, extractTextOnDevice } from "../utils/imageOptimizer";
 import Md from "./Md";
+import { useSpeechToText, useTextToSpeech } from "../hooks/useSpeech";
 
 export default function TutorWorkspace({
   activeId,
@@ -32,6 +37,20 @@ export default function TutorWorkspace({
   const [input, setInput] = useState("");
   const [file, setFile] = useState(null);
   const [subjectFilter, setSubjectFilter] = useState("all");
+  const [sttError, setSttError] = useState("");
+
+  const { listening, start: startSTT, stop: stopSTT, supported: sttSupported } = useSpeechToText({
+    onResult: (transcript) => {
+      setInput((prev) => (prev ? prev + " " + transcript : transcript));
+      setSttError("");
+    },
+    onError: (msg) => {
+      setSttError(msg);
+      setTimeout(() => setSttError(""), 4000);
+    },
+  });
+
+  const { speaking, speak: speakTTS, stop: stopTTS, supported: ttsSupported } = useTextToSpeech();
   const fileInputRef = useRef(null);
   const endRef = useRef(null);
   const activeIdRef = useRef(currentSessionId);
@@ -338,9 +357,26 @@ export default function TutorWorkspace({
                 }
               >
                 {!isUser && (
-                  <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-slate-800 text-xs font-semibold text-purple-300">
-                    <GraduationCap size={14} className="text-purple-400" />
-                    <span>Academic Coach</span>
+                  <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-800">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-300">
+                      <GraduationCap size={14} className="text-purple-400" />
+                      <span>Academic Coach</span>
+                    </div>
+                    {ttsSupported && (
+                      <button
+                        type="button"
+                        onClick={() => speaking ? stopTTS() : speakTTS(m.content)}
+                        title={speaking ? "Stop reading" : "Read aloud"}
+                        className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-lg transition-colors cursor-pointer ${
+                          speaking
+                            ? "text-purple-300 bg-purple-950/60 hover:bg-purple-950"
+                            : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/60"
+                        }`}
+                      >
+                        {speaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                        <span className="hidden sm:inline">{speaking ? "Stop" : "Read"}</span>
+                      </button>
+                    )}
                   </div>
                 )}
                 {m.image_path && (
@@ -394,6 +430,12 @@ export default function TutorWorkspace({
             </div>
           )}
 
+          {sttError && (
+            <div className="text-xs text-red-300 bg-red-950/50 border border-red-800/40 rounded-lg px-3 py-1.5 animate-[fadeIn_.2s]">
+              {sttError}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-2xl px-3 py-2 focus-within:border-purple-500 transition-colors">
             <input
               ref={fileInputRef}
@@ -423,9 +465,25 @@ export default function TutorWorkspace({
                   handleSend();
                 }
               }}
-              placeholder="Ask your coach anything, request a practice problem, or paste a question..."
+              placeholder={listening ? "Listening…" : "Ask your coach anything, request a practice problem, or paste a question..."}
               className="flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32"
             />
+
+            {/* Mic button */}
+            {sttSupported && (
+              <button
+                type="button"
+                onClick={listening ? stopSTT : startSTT}
+                title={listening ? "Stop recording" : "Speak your question"}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer shrink-0 ${
+                  listening
+                    ? "bg-red-600 hover:bg-red-500 text-white animate-pulse"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                }`}
+              >
+                {listening ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+            )}
 
             <button
               type="submit"
