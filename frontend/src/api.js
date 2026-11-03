@@ -1,11 +1,19 @@
 import { localDB } from "./db";
 import { extractTextOnDevice } from "./utils/imageOptimizer";
 
-export const API_BASE_URL = (
+let rawBase = (
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
   "https://kodigo-backend.justinkurt837.workers.dev"
-).replace(/\/$/, "");
+)
+  .trim()
+  .replace(/\/$/, "");
+
+if (!rawBase.startsWith("http://") && !rawBase.startsWith("https://")) {
+  rawBase = `https://${rawBase}`;
+}
+
+export const API_BASE_URL = rawBase;
 
 export const API_BASE = API_BASE_URL;
 
@@ -122,11 +130,27 @@ async function req(path, opts = {}) {
   if (!r.ok) {
     let msg = r.statusText;
     try {
-      msg = (await r.json()).detail || msg;
-    } catch {}
+      const errJson = await r.json();
+      msg = errJson.detail || errJson.message || msg;
+    } catch {
+      try {
+        const errText = await r.text();
+        if (errText) msg = errText;
+      } catch {}
+    }
     throw new Error(msg);
   }
-  return r.json();
+
+  const contentType = r.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return r.json();
+  }
+  const text = await r.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Invalid server response from ${url}.`);
+  }
 }
 
 const json = (method, body) => ({
