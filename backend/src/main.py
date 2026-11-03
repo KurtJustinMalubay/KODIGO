@@ -109,12 +109,12 @@ class Default(WorkerEntrypoint):
         system_prompt: str,
         user_prompt: str
     ) -> str:
-        clean_model = (model_name or "gemini-2.5-flash").strip()
+        clean_model = (model_name or "gemini-3.5-flash-lite").strip()
         # Normalise model name
         if clean_model.startswith("models/"):
             clean_model = clean_model[len("models/"):]
         if not clean_model:
-            clean_model = "gemini-2.5-flash"
+            clean_model = "gemini-3.5-flash-lite"
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent?key={api_key}"
 
@@ -198,7 +198,7 @@ class Default(WorkerEntrypoint):
         if path == "/api/models":
             return json_res({
                 "models": [
-                    {"name": "gemini-2.5-flash", "label": "Gemini 2.5 Flash (Recommended)"},
+                    {"name": "gemini-3.5-flash-lite", "label": "Gemini 2.5 Flash (Recommended)"},
                     {"name": "gemini-2.5-pro", "label": "Gemini 2.5 Pro"},
                     {"name": "gemini-3.5-flash-lite", "label": "Gemini 3.5 Flash Lite"}
                 ]
@@ -223,7 +223,7 @@ class Default(WorkerEntrypoint):
             if not api_key:
                 return error_res("No API key provided. Please configure your Google Gemini API key in Settings or set GEMINI_API_KEY.", 400)
 
-            model_name = request.headers.get("x-model-name") or "gemini-2.5-flash"
+            model_name = request.headers.get("x-model-name") or "gemini-3.5-flash-lite"
             try:
                 reply = await self.call_gemini(api_key, model_name, CHAT_SYS, user_message)
                 return json_res({"reply": reply})
@@ -252,7 +252,7 @@ class Default(WorkerEntrypoint):
                 return error_res("No API key provided. Please configure your Google Gemini API key in Settings or set GEMINI_API_KEY.", 400)
 
             sys_prompt = QUIZ_SYS if mode == "quiz" else (TUTOR_SYS if mode == "tutor" else CHAT_SYS)
-            model_name = request.headers.get("x-model-name") or "gemini-2.5-flash"
+            model_name = request.headers.get("x-model-name") or "gemini-3.5-flash-lite"
 
             try:
                 reply = await self.call_gemini(api_key, model_name, sys_prompt, content)
@@ -296,7 +296,7 @@ class Default(WorkerEntrypoint):
                 "5. NEVER use \\\\ (double backslash) for line breaks in plain text.\n\n"
                 f"{content}"
             )
-            model_name = request.headers.get("x-model-name") or "gemini-2.5-flash"
+            model_name = request.headers.get("x-model-name") or "gemini-3.5-flash-lite"
             try:
                 reply = await self.call_gemini(api_key, model_name, CHAT_SYS, explain_prompt)
                 return json_res({"detailed_explanation": reply})

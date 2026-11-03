@@ -14,24 +14,31 @@ const CORS_HEADERS = {
 const CURATED_MODELS = {
   gemini: [
     {
+      id: "gemini-3.5-flash-lite",
+      name: "Gemini 3.5 Flash Lite",
+      badge: "Recommended • Free Tier",
+      description: "Fastest, low-latency model optimized for quick queries, tutoring, and quizzes.",
+      is_recommended: true,
+    },
+    {
+      id: "gemini-3.8-flash",
+      name: "Gemini 3.8 Flash",
+      badge: "Most Capable",
+      description: "High-speed multimodal reasoning model with generous quota.",
+      is_recommended: false,
+    },
+    {
       id: "gemini-2.5-flash",
       name: "Gemini 2.5 Flash",
-      badge: "Recommended • Ultra Fast",
-      description: "Sub-second multimodal reasoning model with massive throughput.",
-      is_recommended: true,
+      badge: "Ultra Fast",
+      description: "Fast multimodal reasoning model.",
+      is_recommended: false,
     },
     {
       id: "gemini-2.5-pro",
       name: "Gemini 2.5 Pro",
       badge: "Deep Reasoning",
       description: "High-accuracy reasoning, complex mathematics, and deep analysis.",
-      is_recommended: false,
-    },
-    {
-      id: "gemini-3.5-flash-lite",
-      name: "Gemini 3.5 Flash Lite",
-      badge: "Free Tier",
-      description: "Lightweight flash model for quick queries and quizzes.",
       is_recommended: false,
     },
   ],
@@ -211,18 +218,15 @@ async function parseBody(request) {
 }
 
 async function callGemini(apiKey, modelName, systemInstruction, contentsPayload, maxOutputTokens = 2048) {
-  let model = (modelName || "gemini-2.5-flash").trim();
+  let model = (modelName || "gemini-3.5-flash-lite").trim();
   if (model.startsWith("models/")) {
     model = model.slice("models/".length);
   }
-  // gemini-2.5-flash is Google's ultra-low-latency model with native thinking & speed
-  if (!model || model === "gemini-3.5-flash-lite") {
-    model = "gemini-2.5-flash";
+  if (!model) {
+    model = "gemini-3.5-flash-lite";
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model
-  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   // Normalise contents to Gemini API format
   let contents = [];
@@ -493,7 +497,7 @@ export default {
         );
       }
 
-      const modelName = request.headers.get("x-model-name") || "gemini-2.5-flash";
+      const modelName = request.headers.get("x-model-name") || "gemini-3.5-flash-lite";
       try {
         const reply = await callGemini(apiKey, modelName, CHAT_SYS, prompt, 1500);
         return jsonResponse({ reply, content: reply });
@@ -556,7 +560,7 @@ export default {
 
       const sysPrompt =
         mode === "quiz" ? QUIZ_SYS : mode === "tutor" ? TUTOR_SYS : CHAT_SYS;
-      const modelName = request.headers.get("x-model-name") || "gemini-2.5-flash";
+      const modelName = request.headers.get("x-model-name") || "gemini-3.5-flash-lite";
       const maxTokens = mode === "quiz" ? 512 : 1800; // Quiz only needs short answer, 3x faster response!
 
       try {
@@ -633,7 +637,7 @@ export default {
       }
       explainPrompt += `[Question]:\n${questionContent}\n\n[Answer]:\n${answerContent}`;
 
-      const modelName = request.headers.get("x-model-name") || "gemini-2.5-flash";
+      const modelName = request.headers.get("x-model-name") || "gemini-3.5-flash-lite";
       try {
         const reply = await callGemini(apiKey, modelName, CHAT_SYS, explainPrompt, 1500);
         return jsonResponse({
