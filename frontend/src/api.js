@@ -128,8 +128,16 @@ export const api = {
       content: m.content,
     }));
 
-    // 2. Gather active references context text from local database
-    const contextText = await localDB.buildContextText(id);
+    // 2. Gather active references and academic profile context from local database
+    let contextText = await localDB.buildContextText(id);
+    if (mode === "tutor") {
+      const academicCtx = await localDB.buildAcademicContext();
+      if (academicCtx) {
+        contextText = contextText
+          ? `${academicCtx}\n\n${contextText}`
+          : academicCtx;
+      }
+    }
 
     // 3. Prepare payload for Render stateless AI compute
     const f = new FormData();
@@ -379,5 +387,21 @@ export const api = {
       ollama_url: options.ollama_url || local?.ollama_url || "http://localhost:11434",
     };
     return req("/api/models", json("POST", payload));
+  },
+
+  // === ACADEMIC PROFILES & TUTORING ===
+  academic: {
+    getRecords: () => localDB.getAcademicRecords(),
+    saveRecord: (r) => localDB.saveAcademicRecord(r),
+    deleteRecord: (id) => localDB.deleteAcademicRecord(id),
+    getContext: () => localDB.buildAcademicContext(),
+  },
+
+  tutor: {
+    getMessages: () => localDB.getTutorMessages(),
+    send: async (content, file, clientOcrText = "") => {
+      return await api.send("tutor_session", content, "tutor", file, clientOcrText);
+    },
+    clear: () => localDB.clearTutorMessages(),
   },
 };

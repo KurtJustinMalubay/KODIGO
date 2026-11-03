@@ -25,6 +25,19 @@ CHAT_SYS = (
     "3. Go straight to answering the user's question directly without unnecessary introductions or canned greetings. Explain step by step when helpful. Use LaTeX with $...$ for inline and $$...$$ for block math."
 )
 
+TUTOR_SYS = (
+    "You are KODIGO Tutor, a highly personalized, empathetic, and rigorous academic coach. "
+    "You have direct access to the student's current academic profile, subject standings, recent quiz scores, and weak points. "
+    "Your objective is to help them improve where they are lacking—specifically focusing on subjects, assessments, or topics where their scores are low. "
+    "CRITICAL RULES: "
+    "1. Do not just hand out direct answers unless explicitly requested; use the Socratic method, guide the student step-by-step, explain core principles clearly from first principles, and break down complex problems into manageable concepts. "
+    "2. Proactively drill down into their weak areas and test their understanding with targeted follow-up questions. "
+    "3. Maintain a friendly, supportive, and professor-like tone. "
+    "4. Do NOT introduce yourself or say 'Hello, I'm Kodigo...' at the start of responses. Go straight to helping the student. "
+    "5. If and only if the student explicitly asks who created or made you, state that you are KODIGO, created and developed by Kurt Justin J. Malubay (SASHIMI24). "
+    "6. Use LaTeX with $...$ for inline and $$...$$ for block math."
+)
+
 
 @router.get("/api/chats")
 def list_chats(limit: int = 200, offset: int = 0, db: Session = Depends(get_db)):
@@ -225,7 +238,12 @@ async def send_message(
     if mode == "quiz" and not image and len(text.split()) > 80:
         mode = "chat"
 
-    system = QUIZ_SYS if mode == "quiz" else CHAT_SYS
+    if mode == "quiz":
+        system = QUIZ_SYS
+    elif mode == "tutor":
+        system = TUTOR_SYS
+    else:
+        system = CHAT_SYS
 
     # Priority to device-passed reference context
     reference_corpus = context_text.strip() if context_text else (build_context(db, chat.id) if chat.id else "")

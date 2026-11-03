@@ -3,6 +3,7 @@ import {
   Check,
   Download,
   FileUp,
+  GraduationCap,
   MessageSquare,
   Pencil,
   Pin,
@@ -48,6 +49,9 @@ export default function Sidebar({
   open,
   chats = [],
   activeId,
+  viewMode = "chats",
+  onViewModeChange,
+  weakSpotsCount = 0,
   onSelect,
   onNew,
   onDelete,
@@ -104,10 +108,76 @@ export default function Sidebar({
         {/* Top Action Bar */}
         <div className={`p-2.5 flex flex-col gap-2 ${open ? "" : "items-center"}`}>
           {!open && (
-            <div className="hidden md:flex items-center justify-center py-1">
-              <img src="/kodigo.png" alt="KODIGO" className="w-8 h-8 rounded-xl object-contain shadow-sm ring-1 ring-slate-800" />
+            <div className="hidden md:flex flex-col items-center gap-1.5 py-1">
+              <img
+                src="/kodigo.png"
+                alt="KODIGO"
+                className="w-8 h-8 rounded-xl object-contain shadow-sm ring-1 ring-slate-800 mb-1"
+              />
+              <button
+                type="button"
+                onClick={() => onViewModeChange && onViewModeChange("chats")}
+                title="Regular Chats"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                  viewMode === "chats"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                }`}
+              >
+                <MessageSquare size={17} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewModeChange && onViewModeChange("tutor")}
+                title="AI Tutor Coach"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer ${
+                  viewMode === "tutor"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                }`}
+              >
+                <GraduationCap size={18} />
+                {weakSpotsCount > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-1.5 right-1.5" />
+                )}
+              </button>
             </div>
           )}
+
+          {/* Mode Switcher when Sidebar is Open */}
+          {open && (
+            <div className="grid grid-cols-2 p-1 bg-slate-950/70 rounded-xl border border-slate-800 text-xs font-medium mb-0.5">
+              <button
+                type="button"
+                onClick={() => onViewModeChange && onViewModeChange("chats")}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "chats"
+                    ? "bg-indigo-600 text-white font-semibold shadow-sm"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                }`}
+              >
+                <MessageSquare size={14} />
+                <span>Chats</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onViewModeChange && onViewModeChange("tutor")}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all relative cursor-pointer ${
+                  viewMode === "tutor"
+                    ? "bg-indigo-600 text-white font-semibold shadow-sm"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                }`}
+              >
+                <GraduationCap size={15} />
+                <span>AI Tutor</span>
+                {weakSpotsCount > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-2 right-2.5" />
+                )}
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5 w-full">
             {/* New Chat Button */}
             <button

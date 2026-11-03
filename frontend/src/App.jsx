@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
+import AcademicProfileModal from "./components/AcademicProfileModal";
 import ChatFeed from "./components/ChatFeed";
 import Header from "./components/Header";
 import InputBar from "./components/InputBar";
@@ -7,9 +8,12 @@ import RefsModal from "./components/RefsModal";
 import SettingsModal from "./components/SettingsModal";
 import SetupWizard from "./components/SetupWizard";
 import Sidebar from "./components/Sidebar";
+import TutorWorkspace from "./components/TutorWorkspace";
 import { compressImage, extractTextOnDevice } from "./utils/imageOptimizer";
 
 export default function App() {
+  const [viewMode, setViewMode] = useState("chats");
+  const [academicRecords, setAcademicRecords] = useState([]);
   const [chats, setChats] = useState([]);
   const [activeId, setActiveId] = useState(() => {
     try {
@@ -107,6 +111,57 @@ export default function App() {
     // 1. Immediately load local chats from device without waiting for server
     refreshChats();
   }, [refreshChats]);
+
+  // Load local academic profile records on mount
+  const loadAcademicRecords = useCallback(async () => {
+    try {
+      const data = await api.academic.getRecords();
+      setAcademicRecords(data);
+    } catch (err) {
+      console.warn("Failed to load academic records:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAcademicRecords();
+  }, [loadAcademicRecords]);
+
+  const saveAcademicRecord = useCallback(
+    async (record) => {
+      try {
+        await api.academic.saveRecord(record);
+        await loadAcademicRecords();
+      } catch (err) {
+        alert("Failed to save academic record: " + err.message);
+      }
+    },
+    [loadAcademicRecords]
+  );
+
+  const deleteAcademicRecord = useCallback(
+    async (id) => {
+      try {
+        await api.academic.deleteRecord(id);
+        await loadAcademicRecords();
+      } catch (err) {
+        alert("Failed to delete academic record: " + err.message);
+      }
+    },
+    [loadAcademicRecords]
+  );
+
+  // Weak spots count for badge in sidebar
+  const weakSpotsCount = useMemo(() => {
+    let count = 0;
+    academicRecords.forEach((r) => {
+      (r.assessments || []).forEach((a) => {
+        const s = Number(a.score) || 0;
+        const t = Number(a.total) || 0;
+        if (t > 0 && s / t < 0.75) count++;
+      });
+    });
+    return count;
+  }, [academicRecords]);
 
   const newChat = useCallback(async () => {
     try {
@@ -370,8 +425,17 @@ export default function App() {
           open={sidebar}
           chats={chats}
           activeId={activeId}
-          onSelect={select}
-          onNew={newChat}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          weakSpotsCount={weakSpotsCount}
+          onSelect={(id) => {
+            setViewMode("chats");
+            select(id);
+          }}
+          onNew={() => {
+            setViewMode("chats");
+            newChat();
+          }}
           onDelete={deleteChat}
           onPin={pinChat}
           onRename={renameChat}
@@ -379,22 +443,39 @@ export default function App() {
           onImport={importChat}
           onClose={() => setSidebar(false)}
         />
-        <main className="flex-1 flex flex-col min-w-0 bg-slate-950/80">
-          <ChatFeed
-            messages={messages}
-            loading={loading}
-            loadingChat={loadingChat}
-            loadingStatus={loadingStatus}
-            error={error}
+        {viewMode === "tutor" ? (
+          <TutorWorkspace
+            records={academicRecords}
+            onOpenProfile={() => setModal("academic")}
+            loadingSettings={loading}
           />
-          <InputBar
-            mode={mode}
-            setMode={setMode}
-            onSend={send}
-            loading={loading}
-          />
-        </main>
+        ) : (
+          <main className="flex-1 flex flex-col min-w-0 bg-slate-950/80">
+            <ChatFeed
+              messages={messages}
+              loading={loading}
+              loadingChat={loadingChat}
+              loadingStatus={loadingStatus}
+              error={error}
+            />
+            <InputBar
+              mode={mode}
+              setMode={setMode}
+              onSend={send}
+              loading={loading}
+            />
+          </main>
+        )}
       </div>
+
+      {modal === "academic" && (
+        <AcademicProfileModal
+          records={academicRecords}
+          onSaveRecord={saveAcademicRecord}
+          onDeleteRecord={deleteAcademicRecord}
+          onClose={() => setModal(null)}
+        />
+      )}
 
       {modal === "univ" && (
         <RefsModal
