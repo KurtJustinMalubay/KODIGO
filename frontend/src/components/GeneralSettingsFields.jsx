@@ -69,13 +69,16 @@ export default function GeneralSettingsFields({ settings, setSettings }) {
         </select>
       </Field>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 mt-4">
-        <h4 className="text-xs font-semibold text-slate-300 mb-1">
-          KODIGO
-        </h4>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          Created and developed by <span className="font-semibold text-indigo-400">Kurt Justin J. Malubay</span> (SASHIMI24).
-        </p>
+      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 mt-4 flex items-center gap-3">
+        <img src="/kodigo.png" alt="KODIGO Logo" className="w-10 h-10 rounded-xl object-contain shadow-sm shrink-0 ring-1 ring-slate-800" />
+        <div>
+          <h4 className="text-xs font-semibold text-slate-200 mb-0.5">
+            KODIGO
+          </h4>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Created and developed by <span className="font-semibold text-indigo-400">Kurt Justin J. Malubay</span> (SASHIMI24).
+          </p>
+        </div>
       </div>
     </div>
   );

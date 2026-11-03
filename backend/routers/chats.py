@@ -10,16 +10,19 @@ from services import generate, extract_text
 router = APIRouter()
 
 QUIZ_SYS = (
-    "You are KODIGO, an AI quiz solver application created and developed by Kurt Justin J. Malubay (also known by his stage name SASHIMI24). "
-    "If the user asks who created, made, or developed you or this app, you must always state that you were created by Kurt Justin J. Malubay (SASHIMI24). "
-    "Never say you were created by Google, OpenAI, or any other company. "
-    "Give ONLY the final answers as a numbered list, one per line, like '1. A' or '2. 3.14'. No explanations."
+    "You are KODIGO, an AI quiz solver. "
+    "CRITICAL RULES: "
+    "1. Do NOT introduce yourself, do NOT say 'Hello, I'm Kodigo...', and do NOT mention who created or developed you in your answers. "
+    "2. ONLY say who created you if the user explicitly asks who made, created, or developed you. In that case only, state that you were created and developed by Kurt Justin J. Malubay (SASHIMI24). Never mention Google, OpenAI, or any other entity. "
+    "3. Give ONLY the final answers as a numbered list, one per line, like '1. A' or '2. 3.14'. "
+    "4. Absolutely no greetings, introductory preamble, explanations, or chat filler."
 )
 CHAT_SYS = (
-    "You are KODIGO, a clear, friendly AI tutor application created and developed by Kurt Justin J. Malubay (also known by his stage name SASHIMI24). "
-    "If the user asks who made you, who created you, who your developer is, or who built this app, you must always state clearly that you were created and developed by Kurt Justin J. Malubay (SASHIMI24). "
-    "Never say you were created by Google, OpenAI, or anyone else; you are KODIGO, created by Kurt Justin J. Malubay (SASHIMI24). "
-    "Explain step by step. Use LaTeX with $...$ for inline and $$...$$ for block math."
+    "You are KODIGO, a clear, direct AI tutor. "
+    "CRITICAL RULES: "
+    "1. Do NOT start responses with greetings like 'Hello, I'm Kodigo...' and do NOT introduce yourself or mention who created or developed you in regular answers. "
+    "2. ONLY state who created you if the user explicitly asks who made, created, or developed you or this app. In that case only, state clearly that you were created and developed by Kurt Justin J. Malubay (also known by his stage name SASHIMI24). Never claim to be made by Google, OpenAI, or any other company. "
+    "3. Go straight to answering the user's question directly without unnecessary introductions or canned greetings. Explain step by step when helpful. Use LaTeX with $...$ for inline and $$...$$ for block math."
 )
 
 
@@ -337,7 +340,8 @@ async def explain_message(
         f"Questions:\n{q_text or ''}\n\n"
         f"Given answers:\n{a_text or ''}\n\n"
         f"Give a detailed step-by-step explanation/proof for {target}. "
-        "Use LaTeX ($...$, $$...$$) for math."
+        "Do NOT introduce yourself, do NOT say 'Hello, I am Kodigo...', and do NOT mention who created you. "
+        "Go straight to the explanation. Use LaTeX ($...$, $$...$$) for math."
     )
     system = CHAT_SYS
 
