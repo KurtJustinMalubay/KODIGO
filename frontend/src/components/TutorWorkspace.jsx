@@ -167,36 +167,37 @@ export default function TutorWorkspace({
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-slate-950/80 overflow-hidden">
       {/* Top Coach Header Bar */}
-      <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/70 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2.5">
+      <div className="px-3 sm:px-4 py-3 border-b border-slate-800 bg-slate-900/70 flex items-center justify-between gap-2 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
             <GraduationCap size={18} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-100 tracking-wide">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-bold text-slate-100 tracking-wide truncate">
                 KODIGO Academic Coach
               </h2>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-700/50">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-700/50 shrink-0">
                 Socratic Tutor
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-400 truncate">
               Personalized tutoring tailored to your grades and weak spots.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onOpenProfile}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/90 hover:bg-purple-600 active:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-600/90 hover:bg-purple-600 active:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
           >
             <Award size={13} />
-            <span>Manage Academic Profile</span>
+            <span className="hidden sm:inline">Manage Academic Profile</span>
+            <span className="sm:hidden">Profile</span>
             {weakSpots.length > 0 && (
-              <span className="ml-1 px-1.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
+              <span className="ml-0.5 px-1.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
                 {weakSpots.length}
               </span>
             )}
@@ -248,8 +249,8 @@ export default function TutorWorkspace({
       )}
 
       {/* Tutor Chat Feed */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="max-w-3xl mx-auto flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4">
+        <div className="max-w-3xl mx-auto flex flex-col gap-4 w-full">
           {messages.length === 0 && (
             <div className="my-8 text-center space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-purple-600/10 border border-purple-500/20 mx-auto flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/5">
@@ -260,15 +261,13 @@ export default function TutorWorkspace({
                 <h3 className="text-lg font-bold text-slate-100">
                   Welcome to your Academic Tutoring Coach
                 </h3>
-                <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
-                  Unlike standard quiz solvers, KODIGO Tutor understands your
-                  current academic standing and guides you with the Socratic
-                  method, hints, and deep conceptual reinforcement.
+                <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1 leading-relaxed px-2">
+                  KODIGO Tutor guides you with the Socratic method, hints, and deep conceptual reinforcement.
                 </p>
               </div>
 
               {records.length === 0 ? (
-                <div className="p-4 rounded-xl bg-slate-900/80 border border-dashed border-slate-700/80 max-w-md mx-auto text-center space-y-2.5">
+                <div className="p-4 rounded-xl bg-slate-900/80 border border-dashed border-slate-700/80 max-w-xs mx-auto text-center space-y-2.5 w-full">
                   <p className="text-xs text-slate-300">
                     You haven't set up your subjects or grades yet.
                   </p>
@@ -281,7 +280,7 @@ export default function TutorWorkspace({
                   </button>
                 </div>
               ) : (
-                <div className="space-y-2 max-w-lg mx-auto text-left">
+                <div className="space-y-2 max-w-sm mx-auto text-left w-full px-1">
                   <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
                     Suggested Coaching Sessions
                   </div>
@@ -291,7 +290,7 @@ export default function TutorWorkspace({
                         key={i}
                         type="button"
                         onClick={() => handleSend(prompt)}
-                        className="text-left text-xs text-slate-300 hover:text-white p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/50 transition-all flex items-start gap-2 shadow-sm cursor-pointer"
+                        className="text-left text-xs text-slate-300 hover:text-white p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/50 transition-all flex items-start gap-2 shadow-sm cursor-pointer w-full"
                       >
                         <Sparkles
                           size={14}

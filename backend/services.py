@@ -219,11 +219,18 @@ async def generate(settings, system, msgs):
 CURATED_MODELS = {
     "gemini": [
         {
+            "id": "gemini-3.5-flash-lite",
+            "name": "Gemini 3.5 Flash Lite",
+            "badge": "Recommended • Free Tier",
+            "description": "Fastest, most efficient model — perfect for quiz solving and tutoring on the free tier.",
+            "is_recommended": True,
+        },
+        {
             "id": "gemini-3.8-flash",
             "name": "Gemini 3.8 Flash",
-            "badge": "Recommended • Free Tier Active",
+            "badge": "Most Capable",
             "description": "High-speed multimodal reasoning model with generous free quota on Antigravity & Google AI Studio.",
-            "is_recommended": True,
+            "is_recommended": False,
         },
         {
             "id": "gemini-3.8-flash-lite",
@@ -397,8 +404,10 @@ async def list_models(provider: str, api_key: str | None, ollama_url: str):
                     display_name = item.get("displayName") or raw_name
                     desc = (item.get("description") or "").strip()
                     badge = "v3.0+ Active"
-                    if "3.8-flash" in lower:
-                        badge = "Recommended • Fast"
+                    if "3.5-flash-lite" in lower:
+                        badge = "Recommended • Free Tier"
+                    elif "3.8-flash" in lower:
+                        badge = "Most Capable"
                     elif "pro" in lower:
                         badge = "Reasoning"
                     elif "thinking" in lower:
@@ -409,11 +418,12 @@ async def list_models(provider: str, api_key: str | None, ollama_url: str):
                         "name": display_name,
                         "badge": badge,
                         "description": desc[:120] if desc else "Active Google Gemini 3.0+ model.",
-                        "is_recommended": "3.8-flash" in lower or "3.0" in lower,
+                        "is_recommended": "3.5-flash-lite" in lower,
                     })
 
             # Sort prioritized models first
             priority_order = [
+                "gemini-3.5-flash-lite",
                 "gemini-3.8-flash",
                 "gemini-3.8-flash-lite",
                 "gemini-3.0-flash",

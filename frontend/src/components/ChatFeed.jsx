@@ -282,8 +282,8 @@ export default function ChatFeed({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4">
-      <div className="max-w-3xl mx-auto flex flex-col gap-3.5 sm:gap-4">
+    <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3 sm:py-4">
+      <div className="max-w-3xl mx-auto flex flex-col gap-3.5 sm:gap-4 w-full">
         {messages.length === 0 && (
           <div className="text-center text-slate-500 mt-8 sm:mt-16 flex flex-col items-center px-4 select-none">
             <img

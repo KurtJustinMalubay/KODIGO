@@ -46,8 +46,8 @@ export default function SetupSettingsFields({
     (settings.key_mode === "free" || (!settings.key_mode && !settings.cloud_api_key));
 
   useEffect(() => {
-    if (isFreeTier && settings.model_name !== "gemini-3.8-flash") {
-      setSettings((s) => ({ ...s, model_name: "gemini-3.8-flash" }));
+    if (isFreeTier && settings.model_name !== "gemini-3.5-flash-lite") {
+      setSettings((s) => ({ ...s, model_name: "gemini-3.5-flash-lite" }));
     }
   }, [isFreeTier, settings.model_name, setSettings]);
 
@@ -107,7 +107,7 @@ export default function SetupSettingsFields({
     const defaultModels = {
       ollama: "llama3",
       openai: "gpt-4o-mini",
-      gemini: "gemini-3.8-flash",
+      gemini: "gemini-3.5-flash-lite",
     };
     setSettings((current) => ({
       ...current,
@@ -175,7 +175,7 @@ export default function SetupSettingsFields({
                     setSettings((s) => ({
                       ...s,
                       key_mode: "free",
-                      model_name: "gemini-3.8-flash",
+                      model_name: "gemini-3.5-flash-lite",
                     }));
                     loadModels("");
                   }}
@@ -308,7 +308,7 @@ export default function SetupSettingsFields({
             <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-sm text-slate-200">
               <Lock size={15} className="text-emerald-400 shrink-0" />
               <span className="font-semibold text-slate-100 flex-1 truncate">
-                Gemini 3.8 Flash
+                Gemini 3.5 Flash Lite
               </span>
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-800/50 font-medium shrink-0">
                 Recommended • Free Tier

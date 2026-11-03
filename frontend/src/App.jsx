@@ -472,7 +472,7 @@ export default function App() {
   }, [settings?.font_size]);
 
   return (
-    <div className={`h-full flex flex-col ${themeClass} ${fontSizeClass}`}>
+    <div className={`h-full flex flex-col overflow-hidden ${themeClass} ${fontSizeClass}`}>
       <Header
         onToggle={toggleSidebar}
         settings={settings}
@@ -510,7 +510,7 @@ export default function App() {
             onNewTutorChat={newTutorChat}
           />
         ) : (
-          <main className="flex-1 flex flex-col min-w-0 bg-slate-950/80">
+          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-950/80">
             <ChatFeed
               messages={messages}
               loading={loading}

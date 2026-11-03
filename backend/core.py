@@ -41,7 +41,7 @@ def resolve_effective_settings(db: Session, request=None) -> RequestSettings:
     """Resolves settings isolated per client device from request headers."""
     db_settings = get_settings(db)
     provider = db_settings.provider or "gemini"
-    model_name = db_settings.model_name or "gemini-3.8-flash"
+    model_name = db_settings.model_name or "gemini-3.5-flash-lite"
     cloud_api_key = db_settings.cloud_api_key
     ollama_url = db_settings.ollama_url or "http://localhost:11434"
     ocr_provider = db_settings.ocr_provider or "paddleocr"
