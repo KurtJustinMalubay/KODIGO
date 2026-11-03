@@ -10,6 +10,7 @@ import {
   PinOff,
   Plus,
   Search,
+  Settings,
   Trash2,
   X,
 } from "lucide-react";
@@ -60,6 +61,7 @@ export default function Sidebar({
   onExport,
   onImport,
   onClose,
+  onSettings,
 }) {
   const [query, setQuery] = useState("");
   const fileInputRef = useRef(null);
@@ -102,7 +104,7 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed md:static z-30 h-full bg-slate-900 border-r border-slate-800 transition-all duration-300 ease-in-out flex flex-col select-none ${
+        className={`fixed md:static z-30 h-full bg-slate-900 border-r border-slate-800 transition-all duration-300 ease-in-out flex flex-col select-none overflow-hidden ${
           open ? "w-72 max-w-[85vw]" : "w-0 md:w-16"
         }`}
       >
@@ -117,6 +119,30 @@ export default function Sidebar({
 
         {/* Top Action Bar */}
         <div className={`p-2.5 flex flex-col gap-2 ${open ? "" : "items-center"}`}>
+          {/* Mobile Header: Visible only on small screens when sidebar is open */}
+          {open && (
+            <div className="flex items-center justify-between px-1 pb-1 md:hidden border-b border-slate-800/60">
+              <div className="flex items-center gap-2">
+                <img
+                  src="/kodigo.png"
+                  alt="KODIGO"
+                  className="w-6 h-6 rounded-md object-contain"
+                />
+                <span className="font-bold tracking-wider text-xs text-slate-200">
+                  KODIGO MENU
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Close menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
           {!open && (
             <div className="hidden md:flex flex-col items-center gap-1.5 py-1">
               <img
@@ -255,7 +281,7 @@ export default function Sidebar({
 
         {/* Expanded View */}
         {open ? (
-          <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-4 space-y-4">
             {Object.keys(groups).length === 0 ? (
               <div className="text-center py-8 text-xs text-slate-500">
                 {query

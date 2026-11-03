@@ -44,8 +44,6 @@ export default function App() {
     try {
       localStorage.setItem("kodigo_active_chat_id", String(id));
     } catch {}
-    if (window.innerWidth < 768) setSidebar(false);
-
     // If already active and has loaded messages, do nothing
     if (id === activeChatIdRef.current && messagesCacheRef.current.has(id)) {
       return;
@@ -182,6 +180,64 @@ export default function App() {
       return null;
     }
   }, [refreshChats]);
+
+  const newTutorChat = useCallback(async () => {
+    try {
+      const chat = await api.newTutorChat("New Tutor Session");
+      if (chat) {
+        activeChatIdRef.current = chat.id;
+        setActiveId(chat.id);
+        try {
+          localStorage.setItem("kodigo_active_chat_id", String(chat.id));
+        } catch {}
+        setMessages([]);
+        messagesCacheRef.current.set(chat.id, []);
+        setError("");
+        if (window.innerWidth < 768) setSidebar(false);
+        await refreshChats(chat.id);
+        return chat.id;
+      }
+    } catch (err) {
+      setError(err.message);
+      return null;
+    }
+  }, [refreshChats]);
+
+  const handleViewModeChange = useCallback(
+    (newMode) => {
+      setViewMode(newMode);
+      if (newMode === "tutor") {
+        const currentChat = chats.find(
+          (c) => String(c.id) === String(activeChatIdRef.current)
+        );
+        if (!currentChat || !currentChat.is_tutor) {
+          const tutorChat = chats.find((c) => c.is_tutor);
+          if (tutorChat) {
+            select(tutorChat.id);
+          } else {
+            activeChatIdRef.current = null;
+            setActiveId(null);
+            setMessages([]);
+          }
+        }
+      } else {
+        const currentChat = chats.find(
+          (c) => String(c.id) === String(activeChatIdRef.current)
+        );
+        if (!currentChat || currentChat.is_tutor) {
+          const normalChat = chats.find((c) => !c.is_tutor);
+          if (normalChat) {
+            select(normalChat.id);
+          } else {
+            activeChatIdRef.current = null;
+            setActiveId(null);
+            setMessages([]);
+          }
+        }
+      }
+    },
+    [chats, select]
+  );
 
   const deleteChat = useCallback(
     async (id) => {
@@ -414,7 +470,7 @@ export default function App() {
   }, [settings?.font_size]);
 
   return (
-    <div className={`h-full flex flex-col ${themeClass} ${fontSizeClass}`}>
+    <div className={`h-full w-full flex flex-col overflow-hidden ${themeClass} ${fontSizeClass}`}>
       <Header
         onToggle={toggleSidebar}
         settings={settings}
@@ -426,37 +482,14 @@ export default function App() {
           chats={chats}
           activeId={activeId}
           viewMode={viewMode}
-          onViewModeChange={setViewMode}
+          onViewModeChange={handleViewModeChange}
           weakSpotsCount={weakSpotsCount}
           onSelect={(id) => {
             const chat = chats.find((c) => String(c.id) === String(id));
             setViewMode(chat?.is_tutor ? "tutor" : "chats");
             select(id);
           }}
-          onNew={async () => {
-            if (viewMode === "tutor") {
-              try {
-                const chat = await api.newTutorChat("New Tutor Session");
-                if (chat) {
-                  activeChatIdRef.current = chat.id;
-                  setActiveId(chat.id);
-                  try {
-                    localStorage.setItem("kodigo_active_chat_id", String(chat.id));
-                  } catch {}
-                  setMessages([]);
-                  messagesCacheRef.current.set(chat.id, []);
-                  setError("");
-                  if (window.innerWidth < 768) setSidebar(false);
-                  await refreshChats(chat.id);
-                }
-              } catch (err) {
-                setError(err.message);
-              }
-            } else {
-              setViewMode("chats");
-              newChat();
-            }
-          }}
+          onNew={viewMode === "tutor" ? newTutorChat : newChat}
           onDelete={deleteChat}
           onPin={pinChat}
           onRename={renameChat}
@@ -465,15 +498,19 @@ export default function App() {
           onClose={() => setSidebar(false)}
         />
         {viewMode === "tutor" ? (
-          <TutorWorkspace
-            activeId={activeId}
-            records={academicRecords}
-            onOpenProfile={() => setModal("academic")}
-            loadingSettings={loading}
-            onRefreshChats={refreshChats}
-          />
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden border-r border-slate-700/60">
+            <TutorWorkspace
+              activeId={activeId}
+              activeChat={chats.find((c) => String(c.id) === String(activeId))}
+              records={academicRecords}
+              onOpenProfile={() => setModal("academic")}
+              loadingSettings={loading}
+              onRefreshChats={refreshChats}
+              onNewTutorChat={newTutorChat}
+            />
+          </div>
         ) : (
-          <main className="flex-1 flex flex-col min-w-0 bg-slate-950/80">
+          <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-950/80 border-r border-slate-700/60">
             <ChatFeed
               messages={messages}
               loading={loading}

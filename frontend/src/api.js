@@ -9,9 +9,10 @@ const SETTINGS_KEY = "kodigo_device_settings";
 
 export const DEFAULT_SETTINGS = {
   provider: "gemini",
-  model_name: "gemini-2.0-flash",
+  model_name: "gemini-3.5-flash-lite",
   ollama_url: "http://localhost:11434",
   cloud_api_key: "",
+  key_mode: "free", // "free" = built-in free tier, "custom" = user custom key
   ocr_provider: "paddleocr",
   default_mode: "quiz",
   font_size: "medium",
@@ -24,7 +25,21 @@ export function getLocalSettings() {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      const merged = { ...DEFAULT_SETTINGS, ...parsed };
+
+      // Migrate stale model names (pre-v3.5-lite model) back to recommended for free tier
+      const staleModel =
+        merged.model_name &&
+        (merged.model_name.includes("gemini-1.") ||
+          merged.model_name.includes("gemini-2.") ||
+          merged.model_name.includes("3.5") ||
+          merged.model_name === "gemini-3.8-flash" ||
+          merged.model_name === "gemini-3.8-flash-lite");
+      if (staleModel && (merged.key_mode === "free" || !merged.cloud_api_key)) {
+        merged.model_name = "gemini-3.5-flash-lite";
+      }
+
+      return merged;
     }
   } catch (e) {
     console.warn("Failed to load settings from localStorage:", e);
@@ -62,7 +77,12 @@ async function req(path, opts = {}) {
   const local = getLocalSettings();
   const headers = { ...(opts.headers || {}) };
   if (local) {
-    if (local.cloud_api_key) headers["x-cloud-api-key"] = local.cloud_api_key;
+    // Only send custom key if in custom mode or if user has entered one and not in free mode
+    if (local.key_mode === "custom" && local.cloud_api_key) {
+      headers["x-cloud-api-key"] = local.cloud_api_key;
+    } else if (local.key_mode !== "free" && local.cloud_api_key) {
+      headers["x-cloud-api-key"] = local.cloud_api_key;
+    }
     if (local.provider) headers["x-ai-provider"] = local.provider;
     if (local.model_name) headers["x-model-name"] = local.model_name;
     if (local.ollama_url) headers["x-ollama-url"] = local.ollama_url;
@@ -383,11 +403,30 @@ export const api = {
     return updated;
   },
 
-  models: (options) => {
+  serverSettings: async () => {
+    try {
+      return await req("/api/settings");
+    } catch {
+      return { server_has_gemini_key: true };
+    }
+  },
+
+  models: (options = {}) => {
     const local = api.getSettingsSync();
+    // In free tier mode, omit cloud_api_key so backend uses server key
+    const isFreeTier =
+      options.key_mode === "free" ||
+      (!options.cloud_api_key && (options.key_mode !== "custom" && local?.key_mode === "free"));
+
+    const apiKey = isFreeTier
+      ? ""
+      : options.cloud_api_key !== undefined
+      ? options.cloud_api_key
+      : local?.cloud_api_key || "";
+
     const payload = {
       provider: options.provider || local?.provider || "gemini",
-      cloud_api_key: options.cloud_api_key || local?.cloud_api_key || "",
+      cloud_api_key: apiKey,
       ollama_url: options.ollama_url || local?.ollama_url || "http://localhost:11434",
     };
     return req("/api/models", json("POST", payload));

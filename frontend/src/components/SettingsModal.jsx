@@ -29,7 +29,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
               key={cat.id}
               type="button"
               onClick={() => setActiveTab(cat.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-medium transition-all ${
                 isActive
                   ? "bg-slate-800 text-indigo-400 shadow-sm border border-slate-700/60"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
@@ -59,18 +59,18 @@ export default function SettingsModal({ settings, onSave, onClose }) {
         )}
       </div>
 
-      <div className="mt-5 pt-3 border-t border-slate-800 flex gap-2">
+      <div className="mt-5 pt-3 border-t border-slate-800 flex gap-2.5">
         <button
           type="button"
           onClick={onClose}
-          className="flex-1 bg-slate-800 hover:bg-slate-700 rounded-lg px-4 py-2 text-sm text-slate-300 transition-colors"
+          className="flex-1 bg-slate-800 hover:bg-slate-700 rounded-xl px-4 py-3 text-sm text-slate-300 transition-colors font-medium"
         >
           Cancel
         </button>
         <button
           type="button"
           onClick={() => onSave(value)}
-          className="flex-1 bg-indigo-600 hover:bg-indigo-500 rounded-lg px-4 py-2 text-sm text-white font-medium shadow-md shadow-indigo-600/20 transition-colors"
+          className="flex-1 bg-indigo-600 hover:bg-indigo-500 rounded-xl px-4 py-3 text-sm text-white font-medium shadow-md shadow-indigo-600/20 transition-colors"
         >
           Save Changes
         </button>

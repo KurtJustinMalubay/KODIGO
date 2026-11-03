@@ -15,11 +15,16 @@ import Md from "./Md";
 
 export default function TutorWorkspace({
   activeId,
+  activeChat,
   records = [],
   onOpenProfile,
   loadingSettings,
   onRefreshChats,
+  onNewTutorChat,
 }) {
+  const isTutorSession = Boolean(activeChat && activeChat.is_tutor);
+  const currentSessionId = isTutorSession ? activeId : null;
+
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
@@ -27,23 +32,23 @@ export default function TutorWorkspace({
   const [file, setFile] = useState(null);
   const fileInputRef = useRef(null);
   const endRef = useRef(null);
-  const activeIdRef = useRef(activeId);
-  activeIdRef.current = activeId;
+  const activeIdRef = useRef(currentSessionId);
+  activeIdRef.current = currentSessionId;
 
   // Load messages for the selected tutor session
   useEffect(() => {
-    if (!activeId) {
+    if (!currentSessionId) {
       setMessages([]);
       return;
     }
     let active = true;
-    api.messages(activeId).then((msgs) => {
-      if (active && activeIdRef.current === activeId) setMessages(msgs);
+    api.messages(currentSessionId).then((msgs) => {
+      if (active && activeIdRef.current === currentSessionId) setMessages(msgs);
     });
     return () => {
       active = false;
     };
-  }, [activeId]);
+  }, [currentSessionId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,7 +74,14 @@ export default function TutorWorkspace({
   const handleSend = async (contentToSend = null) => {
     const text = (contentToSend !== null ? contentToSend : input).trim();
     if (!text && !file) return;
-    if (!activeId) return;
+
+    let targetSessionId = currentSessionId;
+    if (!targetSessionId) {
+      if (onNewTutorChat) {
+        targetSessionId = await onNewTutorChat();
+      }
+      if (!targetSessionId) return;
+    }
 
     const userFile = file;
     setInput("");
@@ -82,7 +94,7 @@ export default function TutorWorkspace({
     const localImg = userFile ? URL.createObjectURL(userFile) : null;
     const optUser = {
       id: tempId,
-      chat_id: activeId,
+      chat_id: targetSessionId,
       sender: "user",
       mode: "tutor",
       content: text || (userFile ? "Reviewing question image..." : ""),
@@ -111,14 +123,12 @@ export default function TutorWorkspace({
 
     try {
       setLoadingStatus("Coach is thinking…");
-      const result = await api.send(activeId, text, "tutor", processedFile, clientOcrText);
-      if (activeIdRef.current === activeId) {
-        setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempId);
-          return [...filtered, result.user, result.ai];
-        });
-      }
-      if (onRefreshChats) await onRefreshChats(activeId);
+      const result = await api.send(targetSessionId, text, "tutor", processedFile, clientOcrText);
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== tempId);
+        return [...filtered, result.user, result.ai];
+      });
+      if (onRefreshChats) await onRefreshChats(targetSessionId);
     } catch (err) {
       alert("Tutor error: " + err.message);
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -130,13 +140,13 @@ export default function TutorWorkspace({
   };
 
   const handleClear = async () => {
-    if (!activeId) return;
+    if (!currentSessionId) return;
     if (
       confirm(
         "Delete this tutoring session? Your academic profile will be saved."
       )
     ) {
-      await api.delChat(activeId);
+      await api.delChat(currentSessionId);
       if (onRefreshChats) await onRefreshChats();
     }
   };
@@ -154,60 +164,40 @@ export default function TutorWorkspace({
     "Help me design an effective study schedule for my upcoming exams.",
   ];
 
-  // No session selected yet
-  if (!activeId) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center min-w-0 bg-slate-950/80 text-center px-6 gap-4">
-        <div className="w-16 h-16 rounded-2xl bg-purple-600/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/5">
-          <GraduationCap size={32} />
-        </div>
-        <div>
-          <h3 className="text-lg font-bold text-slate-100">
-            No Tutor Session Selected
-          </h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 leading-relaxed">
-            Click <strong className="text-slate-300">New Tutor Session</strong>{" "}
-            in the sidebar to start a personalized coaching session, or select
-            an existing one.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-slate-950/80 overflow-hidden">
       {/* Top Coach Header Bar */}
-      <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/70 flex flex-wrap items-center justify-between gap-2.5">
-        <div className="flex items-center gap-2.5">
+      <div className="px-3 sm:px-4 py-3 border-b border-slate-800 bg-slate-900/70 flex items-center justify-between gap-2 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <div className="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
             <GraduationCap size={18} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-100 tracking-wide">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-bold text-slate-100 tracking-wide truncate">
                 KODIGO Academic Coach
               </h2>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-700/50">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-700/50 shrink-0">
                 Socratic Tutor
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-400 truncate">
               Personalized tutoring tailored to your grades and weak spots.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onOpenProfile}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/90 hover:bg-purple-600 active:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-600/90 hover:bg-purple-600 active:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
           >
             <Award size={13} />
-            <span>Manage Academic Profile</span>
+            <span className="hidden sm:inline">Manage Academic Profile</span>
+            <span className="sm:hidden">Profile</span>
             {weakSpots.length > 0 && (
-              <span className="ml-1 px-1.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
+              <span className="ml-0.5 px-1.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
                 {weakSpots.length}
               </span>
             )}
@@ -259,8 +249,8 @@ export default function TutorWorkspace({
       )}
 
       {/* Tutor Chat Feed */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="max-w-3xl mx-auto flex flex-col gap-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4">
+        <div className="max-w-3xl mx-auto flex flex-col gap-4 w-full">
           {messages.length === 0 && (
             <div className="my-8 text-center space-y-4">
               <div className="w-16 h-16 rounded-2xl bg-purple-600/10 border border-purple-500/20 mx-auto flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/5">
@@ -271,15 +261,13 @@ export default function TutorWorkspace({
                 <h3 className="text-lg font-bold text-slate-100">
                   Welcome to your Academic Tutoring Coach
                 </h3>
-                <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 leading-relaxed">
-                  Unlike standard quiz solvers, KODIGO Tutor understands your
-                  current academic standing and guides you with the Socratic
-                  method, hints, and deep conceptual reinforcement.
+                <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1 leading-relaxed px-2">
+                  KODIGO Tutor guides you with the Socratic method, hints, and deep conceptual reinforcement.
                 </p>
               </div>
 
               {records.length === 0 ? (
-                <div className="p-4 rounded-xl bg-slate-900/80 border border-dashed border-slate-700/80 max-w-md mx-auto text-center space-y-2.5">
+                <div className="p-4 rounded-xl bg-slate-900/80 border border-dashed border-slate-700/80 max-w-xs mx-auto text-center space-y-2.5 w-full">
                   <p className="text-xs text-slate-300">
                     You haven't set up your subjects or grades yet.
                   </p>
@@ -292,7 +280,7 @@ export default function TutorWorkspace({
                   </button>
                 </div>
               ) : (
-                <div className="space-y-2 max-w-lg mx-auto text-left">
+                <div className="space-y-2 max-w-sm mx-auto text-left w-full px-1">
                   <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
                     Suggested Coaching Sessions
                   </div>
@@ -302,7 +290,7 @@ export default function TutorWorkspace({
                         key={i}
                         type="button"
                         onClick={() => handleSend(prompt)}
-                        className="text-left text-xs text-slate-300 hover:text-white p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/50 transition-all flex items-start gap-2 shadow-sm cursor-pointer"
+                        className="text-left text-xs text-slate-300 hover:text-white p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/50 transition-all flex items-start gap-2 shadow-sm cursor-pointer w-full"
                       >
                         <Sparkles
                           size={14}
@@ -325,8 +313,8 @@ export default function TutorWorkspace({
                 key={m.id}
                 className={
                   isUser
-                    ? "self-end max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-4 py-2.5 text-sm shadow-sm"
-                    : "border-l-4 border-purple-500 bg-slate-900 rounded-r-xl px-4 py-3 max-w-[90%] text-slate-100 shadow-sm"
+                    ? "self-end max-w-[92%] sm:max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-3.5 sm:px-4 py-2.5 text-sm shadow-sm leading-relaxed"
+                    : "border-l-4 border-purple-500 bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed"
                 }
               >
                 {!isUser && (
@@ -365,7 +353,7 @@ export default function TutorWorkspace({
       </div>
 
       {/* Input Bar for Tutor */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950">
+      <div className="px-3 sm:px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-950/95 backdrop-blur-md shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -421,7 +409,7 @@ export default function TutorWorkspace({
 
             <button
               type="submit"
-              disabled={(!input.trim() && !file) || loading || !activeId}
+              disabled={(!input.trim() && !file) || loading}
               className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white transition-colors cursor-pointer shrink-0"
             >
               {loading ? (
