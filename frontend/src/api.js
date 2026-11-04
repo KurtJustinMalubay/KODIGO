@@ -174,7 +174,7 @@ export const api = {
 
     // 2. Gather active references and academic profile context from local database
     let contextText = await localDB.buildContextText(id);
-    if (mode === "tutor") {
+    if (mode === "tutor" || mode === "tutor_quiz") {
       const academicCtx = await localDB.buildAcademicContext(subjectFilter);
       if (academicCtx) {
         contextText = contextText

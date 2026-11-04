@@ -42,7 +42,7 @@ class Message(Base):
     id = Column(Integer, primary_key=True)
     chat_id = Column(Integer, ForeignKey("chats.id", ondelete="CASCADE"), index=True)
     sender = Column(String(10))  # user | ai
-    mode = Column(String(10))    # quiz | chat
+    mode = Column(String(10))    # quiz | chat | tutor | tutor_quiz
     content = Column(Text)
     image_path = Column(String, nullable=True)
     has_explanation = Column(Boolean, default=False)

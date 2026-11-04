@@ -1,28 +1,33 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
-  Award,
   BookOpen,
   GraduationCap,
   Loader2,
-  Mic,
-  MicOff,
-  Send,
   Sparkles,
   Trash2,
-  Upload,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import { api, resolveUrl } from "../api";
 import { compressImage, extractTextOnDevice } from "../utils/imageOptimizer";
 import Md from "./Md";
-import { useSpeechToText, useTextToSpeech } from "../hooks/useSpeech";
+import InputBar from "./InputBar";
+import { useTextToSpeech } from "../hooks/useSpeech";
 
-const TutorMessageItem = React.memo(function TutorMessageItem({ message }) {
+const TutorMessageItem = React.memo(function TutorMessageItem({
+  message,
+  showTimestamps,
+}) {
   const isUser = message.sender === "user";
   const { isSpeaking, toggle: toggleTTS } = useTextToSpeech(message.id);
   const isStreaming = Boolean(message.isStreaming);
+  const timeFormatted = message.created_at
+    ? new Date(message.created_at).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
 
   const isAutoPrompt =
     !message.content ||
@@ -89,6 +94,11 @@ const TutorMessageItem = React.memo(function TutorMessageItem({ message }) {
           )}
         </div>
       )}
+      {showTimestamps && !isStreaming && timeFormatted && (
+        <div className="text-[10px] text-slate-500 text-right mt-1 opacity-70">
+          {timeFormatted}
+        </div>
+      )}
     </div>
   );
 });
@@ -97,10 +107,9 @@ export default function TutorWorkspace({
   activeId,
   activeChat,
   records = [],
-  onOpenProfile,
-  loadingSettings,
   onRefreshChats,
   onNewTutorChat,
+  showTimestamps = false,
 }) {
   const isTutorSession = Boolean(activeChat && activeChat.is_tutor);
   const currentSessionId = isTutorSession ? activeId : null;
@@ -108,34 +117,12 @@ export default function TutorWorkspace({
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
-  const [input, setInput] = useState("");
-  const [file, setFile] = useState(null);
+  const [tutorMode, setTutorMode] = useState("quiz");
   const [subjectFilter, setSubjectFilter] = useState("all");
-  const [sttError, setSttError] = useState("");
-
-  const inputRef = useRef(null);
-  const { listening, start: startSTT, stop: stopSTT } = useSpeechToText({
-    onResult: (transcript) => {
-      setInput((prev) => (prev ? prev + " " + transcript : transcript));
-      setSttError("");
-    },
-    onError: (msg) => {
-      setSttError(msg);
-      setTimeout(() => setSttError(""), 5000);
-    },
-  });
-  const fileInputRef = useRef(null);
+  const [error, setError] = useState("");
   const endRef = useRef(null);
   const activeIdRef = useRef(currentSessionId);
   activeIdRef.current = currentSessionId;
-
-  useEffect(() => {
-    const textarea = inputRef.current;
-    if (!textarea) return;
-    textarea.style.height = "auto";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
-    textarea.style.overflowY = textarea.scrollHeight > 140 ? "auto" : "hidden";
-  }, [input]);
 
   // Load messages for the selected tutor session
   useEffect(() => {
@@ -173,9 +160,13 @@ export default function TutorWorkspace({
     });
   });
 
-  const handleSend = async (contentToSend = null) => {
-    const text = (contentToSend !== null ? contentToSend : input).trim();
-    if (!text && !file) return;
+  const handleSend = async (
+    contentToSend = "",
+    userFile = null,
+    selectedMode = tutorMode
+  ) => {
+    const text = (contentToSend || "").trim();
+    if (!text && !userFile) return;
 
     let targetSessionId = currentSessionId;
     if (!targetSessionId) {
@@ -185,11 +176,10 @@ export default function TutorWorkspace({
       if (!targetSessionId) return;
     }
 
-    const userFile = file;
-    setInput("");
-    setFile(null);
     setLoading(true);
+    setError("");
     setLoadingStatus("Consulting academic profile…");
+    const apiMode = selectedMode === "quiz" ? "tutor_quiz" : "tutor";
 
     // Optimistic user and AI messages for instantaneous feedback
     const tempId = Date.now();
@@ -198,7 +188,7 @@ export default function TutorWorkspace({
       id: tempId,
       chat_id: targetSessionId,
       sender: "user",
-      mode: "tutor",
+      mode: apiMode,
       content: text || (userFile ? "Reviewing question image..." : ""),
       image_path: localImg,
       created_at: new Date().toISOString(),
@@ -208,7 +198,7 @@ export default function TutorWorkspace({
       id: tempId + 1,
       chat_id: targetSessionId,
       sender: "ai",
-      mode: "tutor",
+      mode: apiMode,
       content: "",
       isStreaming: true,
       created_at: new Date().toISOString(),
@@ -249,7 +239,7 @@ export default function TutorWorkspace({
       const result = await api.send(
         targetSessionId,
         text,
-        "tutor",
+        apiMode,
         processedFile,
         clientOcrText,
         subjectFilter,
@@ -261,7 +251,7 @@ export default function TutorWorkspace({
       });
       if (onRefreshChats) await onRefreshChats(targetSessionId);
     } catch (err) {
-      alert("Tutor error: " + err.message);
+      setError(err.message || "Tutor could not respond. Please try again.");
       setMessages((prev) => prev.filter((m) => m.id !== tempId && m.id !== tempId + 1));
     } finally {
       setLoading(false);
@@ -285,11 +275,11 @@ export default function TutorWorkspace({
   const starterPrompts = [
     ...(weakSpots.length > 0
       ? [
-          `Quiz me step-by-step on ${weakSpots[0].subject} (${weakSpots[0].assessment}), where I scored ${weakSpots[0].pct}%.`,
+          `Start a professor-led practice quiz on ${weakSpots[0].subject} (${weakSpots[0].assessment}), where I scored ${weakSpots[0].pct}%. Ask one question and wait for my answer.`,
           `Explain the foundational concepts I might have missed in ${weakSpots[0].subject}.`,
         ]
       : [
-          "Can you assess my current understanding of my enrolled subjects and quiz me?",
+          "Start a professor-led practice quiz on one of my subjects. Ask one question at a time and wait for my answer.",
         ]),
     "Give me a challenging practice problem with hints instead of the answer.",
     "Help me design an effective study schedule for my upcoming exams.",
@@ -316,38 +306,23 @@ export default function TutorWorkspace({
               </span>
             </div>
             <p className="text-[11px] text-slate-400 truncate">
-              Personalized tutoring tailored to your grades and weak spots.
+              {tutorMode === "quiz"
+                ? "Professor-led practice, one question at a time."
+                : "Coaching tailored to your grades and weak spots."}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        {messages.length > 0 && (
           <button
             type="button"
-            onClick={onOpenProfile}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white text-xs font-semibold shadow-sm shadow-violet-600/20 transition-all cursor-pointer ring-1 ring-violet-400/30"
+            onClick={handleClear}
+            title="Delete this tutoring session"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
           >
-            <Award size={13} />
-            <span className="hidden sm:inline">Academic Profile</span>
-            <span className="sm:hidden">Profile</span>
-            {weakSpots.length > 0 && (
-              <span className="ml-0.5 px-1.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
-                {weakSpots.length}
-              </span>
-            )}
+            <Trash2 size={16} />
           </button>
-
-          {messages.length > 0 && (
-            <button
-              type="button"
-              onClick={handleClear}
-              title="Delete this tutoring session"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Weakness Alert Strip */}
@@ -372,13 +347,6 @@ export default function TutorWorkspace({
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            className="text-[11px] text-amber-400 hover:text-amber-200 underline shrink-0 cursor-pointer ml-1"
-          >
-            View
-          </button>
         </div>
       )}
 
@@ -390,7 +358,7 @@ export default function TutorWorkspace({
           <select
             value={subjectFilter}
             onChange={(e) => setSubjectFilter(e.target.value)}
-            className="flex-1 max-w-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
+            className="w-full min-w-0 max-w-xs flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
           >
             <option value="all">All Subjects</option>
             {records.map((r) => (
@@ -401,8 +369,8 @@ export default function TutorWorkspace({
       )}
 
       {/* Tutor Chat Feed */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4">
-        <div className="max-w-3xl mx-auto flex flex-col gap-4 w-full">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3 sm:py-4">
+        <div className="max-w-3xl mx-auto flex flex-col gap-3.5 sm:gap-4 w-full">
           {messages.length === 0 && (
             <div className="my-6 text-center space-y-5">
               {/* Hero icon */}
@@ -427,51 +395,37 @@ export default function TutorWorkspace({
                 </p>
               </div>
 
-              {records.length === 0 ? (
-                <div className="p-5 rounded-2xl bg-violet-950/35 border border-violet-700/40 max-w-sm mx-auto text-center space-y-3 w-full shadow-lg shadow-violet-900/20">
-                  <div className="text-xs text-slate-300 leading-relaxed">
-                    Set up your subjects and grades so KODIGO can personalize your tutoring sessions and focus on what matters most.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onOpenProfile}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-sm shadow-violet-600/25 transition-all cursor-pointer ring-1 ring-violet-400/30"
-                  >
-                    <Award size={15} /> Set Up Academic Profile
-                  </button>
-                  <p className="text-[10px] text-slate-500">
-                    You can also start chatting right away without a profile.
-                  </p>
+              <div className="space-y-2.5 max-w-sm mx-auto text-left w-full px-1">
+                <div className="text-[10px] font-bold text-violet-400/80 uppercase tracking-widest text-center">
+                  ✨ Suggested Coaching Sessions
                 </div>
-              ) : (
-                <div className="space-y-2.5 max-w-sm mx-auto text-left w-full px-1">
-                  <div className="text-[10px] font-bold text-violet-400/80 uppercase tracking-widest text-center">
-                    ✨ Suggested Coaching Sessions
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {starterPrompts.map((prompt, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleSend(prompt)}
-                        className="text-left text-xs text-slate-300 hover:text-white p-3 rounded-xl bg-slate-900/90 hover:bg-violet-950/40 border border-slate-800 hover:border-violet-500/60 transition-all flex items-start gap-2.5 shadow-sm cursor-pointer w-full"
-                      >
-                        <Sparkles
-                          size={14}
-                          className="text-violet-400 shrink-0 mt-0.5"
-                        />
-                        <span className="leading-snug">{prompt}</span>
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex flex-col gap-2">
+                  {starterPrompts.map((prompt, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleSend(prompt)}
+                      className="text-left text-xs text-slate-300 hover:text-white p-3 rounded-xl bg-slate-900/90 hover:bg-violet-950/40 border border-slate-800 hover:border-violet-500/60 transition-all flex items-start gap-2.5 shadow-sm cursor-pointer w-full"
+                    >
+                      <Sparkles
+                        size={14}
+                        className="text-violet-400 shrink-0 mt-0.5"
+                      />
+                      <span className="leading-snug">{prompt}</span>
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
           {/* Messages */}
           {messages.map((m) => (
-            <TutorMessageItem key={m.id} message={m} />
+            <TutorMessageItem
+              key={m.id}
+              message={m}
+              showTimestamps={showTimestamps}
+            />
           ))}
 
           {loading && (
@@ -483,100 +437,23 @@ export default function TutorWorkspace({
             </div>
           )}
 
+          {error && (
+            <div className="text-red-300 text-sm bg-red-950/40 border border-red-900/50 rounded-xl px-3.5 py-2.5">
+              {error}
+            </div>
+          )}
+
           <div ref={endRef} />
         </div>
       </div>
 
-      {/* Input Bar for Tutor */}
-      <div className="px-3 sm:px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-violet-900/30 bg-slate-950/95 backdrop-blur-md shrink-0">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-          className="max-w-3xl mx-auto flex flex-col gap-2"
-        >
-          {file && (
-            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-slate-300">
-              <span className="truncate">Attached: {file.name}</span>
-              <button
-                type="button"
-                onClick={() => setFile(null)}
-                className="text-slate-500 hover:text-slate-300 ml-2"
-              >
-                Remove
-              </button>
-            </div>
-          )}
-
-          {sttError && (
-            <div className="text-xs text-red-300 bg-red-950/50 border border-red-800/40 rounded-lg px-3 py-1.5 animate-[fadeIn_.2s]">
-              {sttError}
-            </div>
-          )}
-
-          <div className="flex items-end gap-2 bg-slate-900/90 border border-violet-800/50 rounded-2xl px-3 py-2 focus-within:border-violet-500 focus-within:shadow-sm focus-within:shadow-violet-500/10 transition-all">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.pdf,.txt"
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files?.[0]) setFile(e.target.files[0]);
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              title="Attach quiz question or homework problem"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-violet-300 hover:bg-violet-950/50 transition-colors cursor-pointer shrink-0"
-            >
-              <Upload size={16} />
-            </button>
-
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder={listening ? "Listening…" : "Ask your coach anything, request a practice problem, or paste a question..."}
-              className="flex-1 min-h-[40px] max-h-[140px] bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none overflow-y-hidden"
-            />
-
-            {/* Built-in Speech-to-Text Mic button (Always visible on Desktop & Mobile) */}
-            <button
-              type="button"
-              onClick={listening ? stopSTT : startSTT}
-              title={listening ? "Stop voice recording" : "Speak using device built-in speech recognition"}
-              className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
-                listening
-                  ? "bg-red-600 hover:bg-red-500 text-white animate-pulse ring-2 ring-red-400 shadow-md shadow-red-600/40"
-                  : "text-slate-400 hover:text-violet-300 hover:bg-violet-950/50 active:bg-slate-800"
-              }`}
-            >
-              {listening ? <MicOff size={17} /> : <Mic size={17} />}
-            </button>
-
-            <button
-              type="submit"
-              disabled={(!input.trim() && !file) || loading}
-              className="p-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white transition-all cursor-pointer shrink-0 shadow-sm shadow-violet-600/25"
-            >
-              {loading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <Send size={16} />
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
+      <InputBar
+        mode={tutorMode}
+        setMode={setTutorMode}
+        onSend={handleSend}
+        loading={loading}
+        variant="tutor"
+      />
     </div>
   );
 }

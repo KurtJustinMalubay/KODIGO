@@ -596,10 +596,9 @@ export default function App() {
               activeId={activeId}
               activeChat={chats.find((c) => String(c.id) === String(activeId))}
               records={academicRecords}
-              onOpenProfile={() => setModal("academic")}
-              loadingSettings={loading}
               onRefreshChats={refreshChats}
               onNewTutorChat={newTutorChat}
+              showTimestamps={Boolean(settings?.show_timestamps)}
             />
           </div>
         ) : (

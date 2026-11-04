@@ -53,6 +53,18 @@ TUTOR_SYS = (
     "   - NEVER write raw LaTeX commands outside of delimiters. "
     "   - NEVER use \\\\ (double backslash) for line breaks in plain text — use a regular newline or bullet point instead. "
 )
+TUTOR_QUIZ_SYS = (
+    "This is a professor-led practice quiz. Use the student's message and the provided "
+    "academic profile or study material to assess understanding through dialogue. "
+    "Ask exactly one clear question at a time, then wait for the student's response. "
+    "Do not give a list of questions or reveal the answer in the same turn. "
+    "When the student answers, briefly explain what they got right or should revisit, "
+    "then ask one next question that builds on their answer. "
+    "When a quiz or homework image is attached, use it to identify the relevant topic "
+    "and ask a similar practice question rather than solving the uploaded assessment. "
+    "If the student explicitly asks to work through the exact problem, guide them with "
+    "one hint or question at a time instead of jumping to the final answer."
+)
 
 
 @router.get("/api/chats")
@@ -265,8 +277,10 @@ async def _prepare_chat_context(
 
     if mode == "quiz":
         system = QUIZ_SYS
-    elif mode == "tutor":
+    elif mode in ("tutor", "tutor_quiz"):
         system = TUTOR_SYS
+        if mode == "tutor_quiz":
+            system += " " + TUTOR_QUIZ_SYS
     else:
         system = CHAT_SYS
 
