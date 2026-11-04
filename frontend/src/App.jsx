@@ -546,14 +546,13 @@ export default function App() {
   }, [settings?.font_size]);
 
   return (
-    <div className={`h-full w-full flex flex-col overflow-hidden ${themeClass} ${fontSizeClass}`}>
+    <div
+      data-view-mode={viewMode}
+      className={`h-full w-full flex flex-col overflow-hidden ${themeClass} ${fontSizeClass}`}
+    >
       <Header
         onToggle={toggleSidebar}
-        settings={settings}
         onModal={openModal}
-        viewMode={viewMode}
-        onViewModeChange={handleViewModeChange}
-        weakSpotsCount={weakSpotsCount}
       />
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
         <Sidebar

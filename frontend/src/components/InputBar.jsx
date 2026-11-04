@@ -156,7 +156,7 @@ export default function InputBar({ mode, setMode, onSend, loading }) {
             type="button"
             onClick={submit}
             disabled={loading || (!text.trim() && !file)}
-            className="w-10 h-10 flex items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white shadow-md shadow-indigo-600/30 transition-all cursor-pointer shrink-0 mb-0.5"
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-40 disabled:hover:bg-blue-600 text-white shadow-md shadow-blue-600/25 transition-all cursor-pointer shrink-0 mb-0.5"
             title="Send message"
           >
             {loading ? (
@@ -188,11 +188,11 @@ export default function InputBar({ mode, setMode, onSend, loading }) {
               onClick={() => setMode("chat")}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                 mode === "chat"
-                  ? "bg-indigo-600 text-white shadow-sm"
+                  ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              <MessageSquare size={13} className={mode === "chat" ? "text-indigo-200" : "text-slate-500"} />
+              <MessageSquare size={13} className={mode === "chat" ? "text-blue-200" : "text-slate-500"} />
               <span>Chat Mode</span>
             </button>
           </div>

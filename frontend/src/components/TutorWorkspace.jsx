@@ -36,13 +36,13 @@ const TutorMessageItem = React.memo(function TutorMessageItem({ message }) {
       className={
         isUser
           ? "self-end max-w-[92%] sm:max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-3.5 sm:px-4 py-2.5 text-sm shadow-sm leading-relaxed"
-          : "border-l-4 border-purple-500 bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed"
+          : "border-l-4 border-violet-500 bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed"
       }
     >
       {!isUser && (
         <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-800">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-300">
-            <GraduationCap size={14} className="text-purple-400" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-300">
+            <GraduationCap size={14} className="text-violet-400" />
             <span>Academic Coach</span>
           </div>
           {/* Built-in Text-to-Speech button (Always visible on Desktop & Mobile) */}
@@ -53,11 +53,11 @@ const TutorMessageItem = React.memo(function TutorMessageItem({ message }) {
               title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-lg font-medium transition-all cursor-pointer ${
                 isSpeaking
-                  ? "text-purple-200 bg-purple-900/60 border border-purple-700/60 shadow-sm animate-pulse"
+                  ? "text-violet-200 bg-violet-900/60 border border-violet-700/60 shadow-sm animate-pulse"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
               }`}
             >
-              {isSpeaking ? <VolumeX size={13} className="text-purple-400" /> : <Volume2 size={13} />}
+              {isSpeaking ? <VolumeX size={13} className="text-violet-400" /> : <Volume2 size={13} />}
               <span>{isSpeaking ? "Stop" : "Read"}</span>
             </button>
           )}
@@ -73,8 +73,8 @@ const TutorMessageItem = React.memo(function TutorMessageItem({ message }) {
       {isUser ? (
         !isAutoPrompt && <div className="whitespace-pre-wrap">{message.content}</div>
       ) : isStreaming && !message.content ? (
-        <div className="flex items-center gap-2 text-purple-300 text-xs py-1">
-          <Loader2 size={13} className="animate-spin text-purple-400" />
+        <div className="flex items-center gap-2 text-violet-300 text-xs py-1">
+          <Loader2 size={13} className="animate-spin text-violet-400" />
           <span>Coach is thinking...</span>
         </div>
       ) : !message.content ? (
@@ -85,7 +85,7 @@ const TutorMessageItem = React.memo(function TutorMessageItem({ message }) {
         <div className="relative">
           <Md>{message.content}</Md>
           {isStreaming && (
-            <span className="inline-block w-1.5 h-4 ml-1 bg-purple-400 animate-pulse rounded-sm align-middle" />
+            <span className="inline-block w-1.5 h-4 ml-1 bg-violet-400 animate-pulse rounded-sm align-middle" />
           )}
         </div>
       )}
@@ -289,9 +289,9 @@ export default function TutorWorkspace({
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-slate-950/80 overflow-hidden">
       {/* Top Coach Header Bar */}
-      <div className="px-3 sm:px-4 py-3 border-b border-purple-900/40 bg-gradient-to-r from-purple-950/60 via-slate-900/80 to-slate-900/70 flex items-center justify-between gap-2 min-w-0">
+      <div className="px-3 sm:px-4 py-3 border-b border-violet-900/40 bg-slate-900/80 flex items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-600/30 to-indigo-600/20 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0 shadow-sm shadow-purple-500/10">
+          <div className="w-9 h-9 rounded-xl bg-violet-600/15 border border-violet-500/35 flex items-center justify-center text-violet-300 shrink-0">
             <GraduationCap size={20} />
           </div>
           <div className="min-w-0">
@@ -299,14 +299,14 @@ export default function TutorWorkspace({
               <h2 className="text-sm font-extrabold text-white tracking-wide truncate">
                 KODIGO Academic Coach
               </h2>
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/40 shrink-0 tracking-widest uppercase">
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-200 border border-violet-500/30 shrink-0 tracking-widest uppercase">
                 AI Tutor
               </span>
-              <span className="hidden sm:inline text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+              <span className="hidden sm:inline text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700 shrink-0">
                 Socratic Method
               </span>
             </div>
-            <p className="text-[11px] text-purple-300/70 truncate">
+            <p className="text-[11px] text-slate-400 truncate">
               Personalized tutoring tailored to your grades and weak spots.
             </p>
           </div>
@@ -316,7 +316,7 @@ export default function TutorWorkspace({
           <button
             type="button"
             onClick={onOpenProfile}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:from-purple-700 active:to-indigo-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all cursor-pointer ring-1 ring-purple-400/30"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white text-xs font-semibold shadow-sm shadow-violet-600/20 transition-all cursor-pointer ring-1 ring-violet-400/30"
           >
             <Award size={13} />
             <span className="hidden sm:inline">Academic Profile</span>
@@ -376,12 +376,12 @@ export default function TutorWorkspace({
       {/* Subject Context Filter */}
       {records.length > 0 && (
         <div className="px-3 sm:px-4 py-2 border-b border-slate-800 bg-slate-900/60 flex items-center gap-2 shrink-0">
-          <BookOpen size={13} className="text-indigo-400 shrink-0" />
+          <BookOpen size={13} className="text-violet-400 shrink-0" />
           <span className="text-[11px] text-slate-400 font-medium shrink-0">Context:</span>
           <select
             value={subjectFilter}
             onChange={(e) => setSubjectFilter(e.target.value)}
-            className="flex-1 max-w-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-purple-500 cursor-pointer"
+            className="flex-1 max-w-xs bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
           >
             <option value="all">All Subjects</option>
             {records.map((r) => (
@@ -398,10 +398,10 @@ export default function TutorWorkspace({
             <div className="my-6 text-center space-y-5">
               {/* Hero icon */}
               <div className="relative mx-auto w-20 h-20">
-                <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-600/25 to-indigo-600/15 border border-purple-500/30 mx-auto flex items-center justify-center text-purple-300 shadow-xl shadow-purple-500/10">
+                <div className="w-20 h-20 rounded-3xl bg-violet-600/15 border border-violet-500/30 mx-auto flex items-center justify-center text-violet-300">
                   <GraduationCap size={38} />
                 </div>
-                <span className="absolute -top-1.5 -right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md tracking-wide">
+                <span className="absolute -top-1.5 -right-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-lg bg-violet-600 text-white shadow-sm tracking-wide">
                   MAIN
                 </span>
               </div>
@@ -412,21 +412,21 @@ export default function TutorWorkspace({
                 </h3>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed px-4">
                   KODIGO AI Tutor uses the{" "}
-                  <span className="text-purple-300 font-semibold">Socratic method</span> to guide
+                  <span className="text-violet-300 font-semibold">Socratic method</span> to guide
                   you through your weak spots, explain concepts from first principles, and help you
                   truly understand — not just memorize.
                 </p>
               </div>
 
               {records.length === 0 ? (
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-950/60 to-slate-900/80 border border-purple-700/40 max-w-sm mx-auto text-center space-y-3 w-full shadow-lg shadow-purple-900/20">
+                <div className="p-5 rounded-2xl bg-violet-950/35 border border-violet-700/40 max-w-sm mx-auto text-center space-y-3 w-full shadow-lg shadow-violet-900/20">
                   <div className="text-xs text-slate-300 leading-relaxed">
                     Set up your subjects and grades so KODIGO can personalize your tutoring sessions and focus on what matters most.
                   </div>
                   <button
                     type="button"
                     onClick={onOpenProfile}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-purple-600/30 transition-all cursor-pointer ring-1 ring-purple-400/30"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-sm shadow-violet-600/25 transition-all cursor-pointer ring-1 ring-violet-400/30"
                   >
                     <Award size={15} /> Set Up Academic Profile
                   </button>
@@ -436,7 +436,7 @@ export default function TutorWorkspace({
                 </div>
               ) : (
                 <div className="space-y-2.5 max-w-sm mx-auto text-left w-full px-1">
-                  <div className="text-[10px] font-bold text-purple-400/80 uppercase tracking-widest text-center">
+                  <div className="text-[10px] font-bold text-violet-400/80 uppercase tracking-widest text-center">
                     ✨ Suggested Coaching Sessions
                   </div>
                   <div className="flex flex-col gap-2">
@@ -445,11 +445,11 @@ export default function TutorWorkspace({
                         key={i}
                         type="button"
                         onClick={() => handleSend(prompt)}
-                        className="text-left text-xs text-slate-300 hover:text-white p-3 rounded-xl bg-gradient-to-r from-slate-900/90 to-purple-950/30 hover:from-slate-800 hover:to-purple-900/40 border border-slate-800 hover:border-purple-500/60 transition-all flex items-start gap-2.5 shadow-sm cursor-pointer w-full"
+                        className="text-left text-xs text-slate-300 hover:text-white p-3 rounded-xl bg-slate-900/90 hover:bg-violet-950/40 border border-slate-800 hover:border-violet-500/60 transition-all flex items-start gap-2.5 shadow-sm cursor-pointer w-full"
                       >
                         <Sparkles
                           size={14}
-                          className="text-purple-400 shrink-0 mt-0.5"
+                          className="text-violet-400 shrink-0 mt-0.5"
                         />
                         <span className="leading-snug">{prompt}</span>
                       </button>
@@ -467,7 +467,7 @@ export default function TutorWorkspace({
 
           {loading && (
             <div className="flex items-center gap-2 text-slate-400 text-sm py-2">
-              <Loader2 size={16} className="animate-spin text-purple-400" />
+              <Loader2 size={16} className="animate-spin text-violet-400" />
               <span className="font-medium text-slate-300">
                 {loadingStatus || "Coach is preparing guidance…"}
               </span>
@@ -479,7 +479,7 @@ export default function TutorWorkspace({
       </div>
 
       {/* Input Bar for Tutor */}
-      <div className="px-3 sm:px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-purple-900/30 bg-gradient-to-r from-purple-950/30 via-slate-950/95 to-slate-950/95 backdrop-blur-md shrink-0">
+      <div className="px-3 sm:px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-violet-900/30 bg-slate-950/95 backdrop-blur-md shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -506,7 +506,7 @@ export default function TutorWorkspace({
             </div>
           )}
 
-          <div className="flex items-center gap-2 bg-slate-900/90 border border-purple-800/50 rounded-2xl px-3 py-2 focus-within:border-purple-500 focus-within:shadow-sm focus-within:shadow-purple-500/10 transition-all">
+          <div className="flex items-center gap-2 bg-slate-900/90 border border-violet-800/50 rounded-2xl px-3 py-2 focus-within:border-violet-500 focus-within:shadow-sm focus-within:shadow-violet-500/10 transition-all">
             <input
               ref={fileInputRef}
               type="file"
@@ -520,7 +520,7 @@ export default function TutorWorkspace({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               title="Attach quiz question or homework problem"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-purple-300 hover:bg-purple-950/50 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-violet-300 hover:bg-violet-950/50 transition-colors cursor-pointer shrink-0"
             >
               <Upload size={16} />
             </button>
@@ -547,7 +547,7 @@ export default function TutorWorkspace({
               className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
                 listening
                   ? "bg-red-600 hover:bg-red-500 text-white animate-pulse ring-2 ring-red-400 shadow-md shadow-red-600/40"
-                  : "text-slate-400 hover:text-purple-300 hover:bg-purple-950/50 active:bg-slate-800"
+                  : "text-slate-400 hover:text-violet-300 hover:bg-violet-950/50 active:bg-slate-800"
               }`}
             >
               {listening ? <MicOff size={17} /> : <Mic size={17} />}
@@ -556,7 +556,7 @@ export default function TutorWorkspace({
             <button
               type="submit"
               disabled={(!input.trim() && !file) || loading}
-              className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white transition-all cursor-pointer shrink-0 shadow-sm shadow-purple-600/30"
+              className="p-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white transition-all cursor-pointer shrink-0 shadow-sm shadow-violet-600/25"
             >
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />

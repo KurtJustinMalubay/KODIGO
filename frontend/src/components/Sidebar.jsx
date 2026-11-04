@@ -113,7 +113,7 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed md:static z-30 h-full bg-slate-900 border-r border-slate-800 transition-all duration-300 ease-in-out flex flex-col select-none overflow-hidden ${
+        className={`fixed md:static top-14 bottom-0 md:top-auto md:bottom-auto z-30 h-auto md:h-full bg-slate-900 border-r border-slate-800 transition-all duration-300 ease-in-out flex flex-col select-none overflow-hidden ${
           open ? "w-72 max-w-[85vw]" : "w-0 md:w-16"
         }`}
       >
@@ -163,9 +163,11 @@ export default function Sidebar({
                 type="button"
                 onClick={() => onViewModeChange && onViewModeChange("tutor")}
                 title="AI Tutor (Main Feature)"
+                aria-label={`AI Tutor, ${tutorCount} sessions`}
+                aria-pressed={viewMode === "tutor"}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer ${
                   viewMode === "tutor"
-                    ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/40 ring-1 ring-purple-400/50"
+                    ? "bg-violet-600 text-white shadow-md shadow-violet-600/30 ring-1 ring-violet-400/50"
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
                 }`}
               >
@@ -178,9 +180,11 @@ export default function Sidebar({
                 type="button"
                 onClick={() => onViewModeChange && onViewModeChange("chats")}
                 title="Regular Chats"
+                aria-label={`Chats, ${normalCount} conversations`}
+                aria-pressed={viewMode === "chats"}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
                   viewMode === "chats"
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400/50"
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
                 }`}
               >
@@ -195,10 +199,11 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={() => onViewModeChange && onViewModeChange("tutor")}
+                aria-pressed={viewMode === "tutor"}
                 className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all relative cursor-pointer ${
                   viewMode === "tutor"
-                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold shadow-md shadow-purple-600/30 ring-1 ring-purple-400/40"
-                    : "text-purple-300/80 hover:text-purple-200 hover:bg-purple-950/40"
+                    ? "bg-violet-600 text-white font-semibold shadow-sm shadow-violet-600/25 ring-1 ring-violet-400/40"
+                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
                 }`}
               >
                 <GraduationCap size={15} />
@@ -211,10 +216,11 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={() => onViewModeChange && onViewModeChange("chats")}
+                aria-pressed={viewMode === "chats"}
                 className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all cursor-pointer ${
                   viewMode === "chats"
-                    ? "bg-slate-800 text-white font-semibold shadow-sm"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                    ? "bg-blue-600 text-white font-semibold shadow-sm shadow-blue-600/25 ring-1 ring-blue-400/40"
+                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
                 }`}
               >
                 <MessageSquare size={14} />
@@ -231,8 +237,8 @@ export default function Sidebar({
               title={viewMode === "tutor" ? "Start New AI Tutor Session" : "New Normal Chat"}
               className={`flex items-center gap-2.5 text-white font-semibold rounded-xl transition-all shadow-sm cursor-pointer ${
                 viewMode === "tutor"
-                  ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:from-purple-700 active:to-indigo-700 shadow-purple-600/25 ring-1 ring-purple-400/30"
-                  : "bg-indigo-600/90 hover:bg-indigo-600 active:bg-indigo-700 shadow-indigo-500/20"
+                  ? "bg-violet-600 hover:bg-violet-500 active:bg-violet-700 shadow-violet-600/25 ring-1 ring-violet-400/30"
+                  : "bg-blue-600 hover:bg-blue-500 active:bg-blue-700 shadow-blue-500/20"
               } ${
                 open
                   ? "flex-1 px-3.5 py-2.5 text-sm justify-start min-h-[42px]"
@@ -263,7 +269,11 @@ export default function Sidebar({
 
           {/* Search input when open */}
           {open && (
-            <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2.5 py-1.5 focus-within:border-indigo-500/80 transition-colors">
+            <div className={`flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2.5 py-1.5 transition-colors ${
+              viewMode === "tutor"
+                ? "focus-within:border-violet-500/80"
+                : "focus-within:border-blue-500/80"
+            }`}>
               <Search size={14} className="text-slate-400 shrink-0" />
               <input
                 value={query}
@@ -459,8 +469,8 @@ const ExpandedChatRow = memo(function ExpandedChatRow({
       className={`group relative flex items-center gap-2 px-2.5 py-2 rounded-xl cursor-pointer text-xs font-medium transition-all select-none min-h-[38px] ${
         active
           ? chat.is_tutor
-            ? "bg-purple-950/60 text-white shadow-sm border border-purple-700/50"
-            : "bg-slate-800 text-white shadow-sm border border-slate-700/60"
+            ? "bg-violet-950/60 text-white shadow-sm border border-violet-700/50"
+            : "bg-blue-950/50 text-white shadow-sm border border-blue-700/50"
           : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
       }`}
     >
@@ -584,8 +594,8 @@ const MinimizedChatButton = memo(function MinimizedChatButton({
         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer ${
           active
             ? chat.is_tutor
-              ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/40 ring-1 ring-purple-400/50"
-              : "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400"
+              ? "bg-violet-600 text-white shadow-md shadow-violet-600/30 ring-1 ring-violet-400/50"
+              : "bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400"
             : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
         }`}
         aria-label={chat.title}
