@@ -289,21 +289,24 @@ export default function TutorWorkspace({
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-slate-950/80 overflow-hidden">
       {/* Top Coach Header Bar */}
-      <div className="px-3 sm:px-4 py-3 border-b border-slate-800 bg-slate-900/70 flex items-center justify-between gap-2 min-w-0">
+      <div className="px-3 sm:px-4 py-3 border-b border-purple-900/40 bg-gradient-to-r from-purple-950/60 via-slate-900/80 to-slate-900/70 flex items-center justify-between gap-2 min-w-0">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className="w-8 h-8 rounded-lg bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0">
-            <GraduationCap size={18} />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-600/30 to-indigo-600/20 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0 shadow-sm shadow-purple-500/10">
+            <GraduationCap size={20} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm font-bold text-slate-100 tracking-wide truncate">
+              <h2 className="text-sm font-extrabold text-white tracking-wide truncate">
                 KODIGO Academic Coach
               </h2>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-900/50 text-purple-300 border border-purple-700/50 shrink-0">
-                Socratic Tutor
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/40 shrink-0 tracking-widest uppercase">
+                AI Tutor
+              </span>
+              <span className="hidden sm:inline text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                Socratic Method
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 truncate">
+            <p className="text-[11px] text-purple-300/70 truncate">
               Personalized tutoring tailored to your grades and weak spots.
             </p>
           </div>
@@ -313,10 +316,10 @@ export default function TutorWorkspace({
           <button
             type="button"
             onClick={onOpenProfile}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-600/90 hover:bg-purple-600 active:bg-purple-700 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:from-purple-700 active:to-indigo-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all cursor-pointer ring-1 ring-purple-400/30"
           >
             <Award size={13} />
-            <span className="hidden sm:inline">Manage Academic Profile</span>
+            <span className="hidden sm:inline">Academic Profile</span>
             <span className="sm:hidden">Profile</span>
             {weakSpots.length > 0 && (
               <span className="ml-0.5 px-1.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
@@ -392,51 +395,63 @@ export default function TutorWorkspace({
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4">
         <div className="max-w-3xl mx-auto flex flex-col gap-4 w-full">
           {messages.length === 0 && (
-            <div className="my-8 text-center space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-purple-600/10 border border-purple-500/20 mx-auto flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/5">
-                <GraduationCap size={32} />
+            <div className="my-6 text-center space-y-5">
+              {/* Hero icon */}
+              <div className="relative mx-auto w-20 h-20">
+                <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-600/25 to-indigo-600/15 border border-purple-500/30 mx-auto flex items-center justify-center text-purple-300 shadow-xl shadow-purple-500/10">
+                  <GraduationCap size={38} />
+                </div>
+                <span className="absolute -top-1.5 -right-1.5 text-[10px] font-black px-1.5 py-0.5 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md tracking-wide">
+                  MAIN
+                </span>
               </div>
 
-              <div>
-                <h3 className="text-lg font-bold text-slate-100">
-                  Welcome to your Academic Tutoring Coach
+              <div className="space-y-1.5">
+                <h3 className="text-xl font-extrabold text-white tracking-tight">
+                  Your Personal Academic Coach
                 </h3>
-                <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1 leading-relaxed px-2">
-                  KODIGO Tutor guides you with the Socratic method, hints, and deep conceptual reinforcement.
+                <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed px-4">
+                  KODIGO AI Tutor uses the{" "}
+                  <span className="text-purple-300 font-semibold">Socratic method</span> to guide
+                  you through your weak spots, explain concepts from first principles, and help you
+                  truly understand — not just memorize.
                 </p>
               </div>
 
               {records.length === 0 ? (
-                <div className="p-4 rounded-xl bg-slate-900/80 border border-dashed border-slate-700/80 max-w-xs mx-auto text-center space-y-2.5 w-full">
-                  <p className="text-xs text-slate-300">
-                    You haven't set up your subjects or grades yet.
-                  </p>
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-950/60 to-slate-900/80 border border-purple-700/40 max-w-sm mx-auto text-center space-y-3 w-full shadow-lg shadow-purple-900/20">
+                  <div className="text-xs text-slate-300 leading-relaxed">
+                    Set up your subjects and grades so KODIGO can personalize your tutoring sessions and focus on what matters most.
+                  </div>
                   <button
                     type="button"
                     onClick={onOpenProfile}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-purple-600/30 transition-all cursor-pointer ring-1 ring-purple-400/30"
                   >
-                    <Award size={14} /> Set Up Academic Profile
+                    <Award size={15} /> Set Up Academic Profile
                   </button>
+                  <p className="text-[10px] text-slate-500">
+                    You can also start chatting right away without a profile.
+                  </p>
                 </div>
               ) : (
-                <div className="space-y-2 max-w-sm mx-auto text-left w-full px-1">
-                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
-                    Suggested Coaching Sessions
+                <div className="space-y-2.5 max-w-sm mx-auto text-left w-full px-1">
+                  <div className="text-[10px] font-bold text-purple-400/80 uppercase tracking-widest text-center">
+                    ✨ Suggested Coaching Sessions
                   </div>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     {starterPrompts.map((prompt, i) => (
                       <button
                         key={i}
                         type="button"
                         onClick={() => handleSend(prompt)}
-                        className="text-left text-xs text-slate-300 hover:text-white p-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/50 transition-all flex items-start gap-2 shadow-sm cursor-pointer w-full"
+                        className="text-left text-xs text-slate-300 hover:text-white p-3 rounded-xl bg-gradient-to-r from-slate-900/90 to-purple-950/30 hover:from-slate-800 hover:to-purple-900/40 border border-slate-800 hover:border-purple-500/60 transition-all flex items-start gap-2.5 shadow-sm cursor-pointer w-full"
                       >
                         <Sparkles
                           size={14}
                           className="text-purple-400 shrink-0 mt-0.5"
                         />
-                        <span>{prompt}</span>
+                        <span className="leading-snug">{prompt}</span>
                       </button>
                     ))}
                   </div>
@@ -464,7 +479,7 @@ export default function TutorWorkspace({
       </div>
 
       {/* Input Bar for Tutor */}
-      <div className="px-3 sm:px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-950/95 backdrop-blur-md shrink-0">
+      <div className="px-3 sm:px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-purple-900/30 bg-gradient-to-r from-purple-950/30 via-slate-950/95 to-slate-950/95 backdrop-blur-md shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -491,7 +506,7 @@ export default function TutorWorkspace({
             </div>
           )}
 
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-2xl px-3 py-2 focus-within:border-purple-500 transition-colors">
+          <div className="flex items-center gap-2 bg-slate-900/90 border border-purple-800/50 rounded-2xl px-3 py-2 focus-within:border-purple-500 focus-within:shadow-sm focus-within:shadow-purple-500/10 transition-all">
             <input
               ref={fileInputRef}
               type="file"
@@ -505,7 +520,7 @@ export default function TutorWorkspace({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               title="Attach quiz question or homework problem"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-purple-300 hover:bg-purple-950/50 transition-colors cursor-pointer shrink-0"
             >
               <Upload size={16} />
             </button>
@@ -532,7 +547,7 @@ export default function TutorWorkspace({
               className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
                 listening
                   ? "bg-red-600 hover:bg-red-500 text-white animate-pulse ring-2 ring-red-400 shadow-md shadow-red-600/40"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800 active:bg-slate-800"
+                  : "text-slate-400 hover:text-purple-300 hover:bg-purple-950/50 active:bg-slate-800"
               }`}
             >
               {listening ? <MicOff size={17} /> : <Mic size={17} />}
@@ -541,7 +556,7 @@ export default function TutorWorkspace({
             <button
               type="submit"
               disabled={(!input.trim() && !file) || loading}
-              className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white transition-colors cursor-pointer shrink-0"
+              className="p-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 text-white transition-all cursor-pointer shrink-0 shadow-sm shadow-purple-600/30"
             >
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />

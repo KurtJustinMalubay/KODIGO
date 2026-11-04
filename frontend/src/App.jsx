@@ -12,7 +12,18 @@ import TutorWorkspace from "./components/TutorWorkspace";
 import { compressImage, extractTextOnDevice } from "./utils/imageOptimizer";
 
 export default function App() {
-  const [viewMode, setViewMode] = useState("chats");
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem("kodigo_view_mode");
+      // Default to "tutor" on first open so AI Tutor is the main feature
+      return saved === "chats" ? "chats" : "tutor";
+    } catch {
+      return "tutor";
+    }
+  });
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
+
   const [academicRecords, setAcademicRecords] = useState([]);
   const [chats, setChats] = useState([]);
   const [activeId, setActiveId] = useState(() => {
@@ -25,7 +36,7 @@ export default function App() {
   });
   const [messages, setMessages] = useState([]);
   const [settings, setSettings] = useState(() => api.getSettingsSync());
-  const [mode, setMode] = useState(() => settings.default_mode || "quiz");
+  const [mode, setMode] = useState(() => settings.default_mode || "tutor");
   const [sidebar, setSidebar] = useState(window.innerWidth >= 768);
   const [modal, setModal] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -87,15 +98,27 @@ export default function App() {
         const data = await api.chats();
         setChats(data);
 
-        // Auto-select active chat or restore last selected chat
+        // Auto-select chat matching active viewMode
         if (data.length > 0) {
+          const currentMode = viewModeRef.current || "tutor";
+          const isTutorMode = currentMode === "tutor";
           const savedId = localStorage.getItem("kodigo_active_chat_id");
           const targetId = preferredId || activeChatIdRef.current || savedId;
           const found = data.find((c) => String(c.id) === String(targetId));
-          if (found) {
+
+          if (found && (isTutorMode ? Boolean(found.is_tutor) : !found.is_tutor)) {
             select(found.id);
-          } else if (!activeChatIdRef.current) {
-            select(data[0].id);
+          } else {
+            const modeMatched = data.find((c) =>
+              isTutorMode ? Boolean(c.is_tutor) : !c.is_tutor
+            );
+            if (modeMatched) {
+              select(modeMatched.id);
+            } else {
+              activeChatIdRef.current = null;
+              setActiveId(null);
+              setMessages([]);
+            }
           }
         }
       } catch (err) {
@@ -206,6 +229,9 @@ export default function App() {
   const handleViewModeChange = useCallback(
     (newMode) => {
       setViewMode(newMode);
+      try {
+        localStorage.setItem("kodigo_view_mode", newMode);
+      } catch {}
       if (newMode === "tutor") {
         const currentChat = chats.find(
           (c) => String(c.id) === String(activeChatIdRef.current)
@@ -504,6 +530,9 @@ export default function App() {
         onToggle={toggleSidebar}
         settings={settings}
         onModal={openModal}
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        weakSpotsCount={weakSpotsCount}
       />
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
         <Sidebar

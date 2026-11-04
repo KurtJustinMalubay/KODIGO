@@ -152,6 +152,21 @@ export default function Sidebar({
               />
               <button
                 type="button"
+                onClick={() => onViewModeChange && onViewModeChange("tutor")}
+                title="AI Tutor (Main Feature)"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer ${
+                  viewMode === "tutor"
+                    ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/40 ring-1 ring-purple-400/50"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                }`}
+              >
+                <GraduationCap size={18} />
+                {weakSpotsCount > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-1.5 right-1.5" />
+                )}
+              </button>
+              <button
+                type="button"
                 onClick={() => onViewModeChange && onViewModeChange("chats")}
                 title="Regular Chats"
                 className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
@@ -162,54 +177,44 @@ export default function Sidebar({
               >
                 <MessageSquare size={17} />
               </button>
-              <button
-                type="button"
-                onClick={() => onViewModeChange && onViewModeChange("tutor")}
-                title="AI Tutor Coach"
-                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer ${
-                  viewMode === "tutor"
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-                }`}
-              >
-                <GraduationCap size={18} />
-                {weakSpotsCount > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-1.5 right-1.5" />
-                )}
-              </button>
             </div>
           )}
 
-          {/* Mode Switcher when Sidebar is Open */}
+          {/* Mode Switcher when Sidebar is Open - AI Tutor is FIRST & Prominent */}
           {open && (
-            <div className="grid grid-cols-2 p-1 bg-slate-950/70 rounded-xl border border-slate-800 text-xs font-medium mb-0.5">
-              <button
-                type="button"
-                onClick={() => onViewModeChange && onViewModeChange("chats")}
-                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all cursor-pointer ${
-                  viewMode === "chats"
-                    ? "bg-indigo-600 text-white font-semibold shadow-sm"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
-                }`}
-              >
-                <MessageSquare size={14} />
-                <span>Chats ({normalCount})</span>
-              </button>
-
+            <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800 text-xs font-medium mb-0.5 shadow-inner">
               <button
                 type="button"
                 onClick={() => onViewModeChange && onViewModeChange("tutor")}
                 className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all relative cursor-pointer ${
                   viewMode === "tutor"
-                    ? "bg-purple-600 text-white font-semibold shadow-sm"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold shadow-md shadow-purple-600/30 ring-1 ring-purple-400/40"
+                    : "text-purple-300/80 hover:text-purple-200 hover:bg-purple-950/40"
                 }`}
               >
                 <GraduationCap size={15} />
                 <span>AI Tutor ({tutorCount})</span>
+                <span className={`text-[9px] px-1 py-0.2 rounded font-extrabold ml-0.5 ${
+                  viewMode === "tutor" ? "bg-white/20 text-white" : "bg-purple-900/60 text-purple-300"
+                }`}>
+                  MAIN
+                </span>
                 {weakSpotsCount > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-2 right-2.5" />
+                  <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-2 right-2" />
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onViewModeChange && onViewModeChange("chats")}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "chats"
+                    ? "bg-slate-800 text-white font-semibold shadow-sm"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+                }`}
+              >
+                <MessageSquare size={14} />
+                <span>Chats ({normalCount})</span>
               </button>
             </div>
           )}
@@ -219,10 +224,10 @@ export default function Sidebar({
             <button
               type="button"
               onClick={onNew}
-              title={viewMode === "tutor" ? "New AI Tutor Session" : "New Normal Chat"}
-              className={`flex items-center gap-2.5 text-white font-medium rounded-xl transition-all shadow-sm cursor-pointer ${
+              title={viewMode === "tutor" ? "Start New AI Tutor Session" : "New Normal Chat"}
+              className={`flex items-center gap-2.5 text-white font-semibold rounded-xl transition-all shadow-sm cursor-pointer ${
                 viewMode === "tutor"
-                  ? "bg-purple-600 hover:bg-purple-500 active:bg-purple-700 shadow-purple-500/20"
+                  ? "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:from-purple-700 active:to-indigo-700 shadow-purple-600/25 ring-1 ring-purple-400/30"
                   : "bg-indigo-600/90 hover:bg-indigo-600 active:bg-indigo-700 shadow-indigo-500/20"
               } ${
                 open
@@ -435,7 +440,9 @@ const ExpandedChatRow = memo(function ExpandedChatRow({
       }}
       className={`group relative flex items-center gap-2 px-2.5 py-2 rounded-xl cursor-pointer text-xs font-medium transition-all select-none min-h-[38px] ${
         active
-          ? "bg-slate-800 text-white shadow-sm border border-slate-700/60"
+          ? chat.is_tutor
+            ? "bg-purple-950/60 text-white shadow-sm border border-purple-700/50"
+            : "bg-slate-800 text-white shadow-sm border border-slate-700/60"
           : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
       }`}
     >
@@ -563,7 +570,9 @@ const MinimizedChatButton = memo(function MinimizedChatButton({
         onClick={handleClick}
         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all relative cursor-pointer ${
           active
-            ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400"
+            ? chat.is_tutor
+              ? "bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/40 ring-1 ring-purple-400/50"
+              : "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400"
             : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
         }`}
         aria-label={chat.title}
