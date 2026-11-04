@@ -61,9 +61,6 @@ export default function Header({
           >
             <GraduationCap size={14} className={viewMode === "tutor" ? "text-purple-200" : "text-purple-400"} />
             <span>AI Tutor</span>
-            <span className="hidden md:inline-flex text-[9px] px-1 py-0.2 rounded bg-white/20 text-white font-bold ml-0.5">
-              MAIN
-            </span>
             {weakSpotsCount > 0 && viewMode !== "tutor" && (
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             )}

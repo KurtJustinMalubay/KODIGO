@@ -194,11 +194,6 @@ export default function Sidebar({
               >
                 <GraduationCap size={15} />
                 <span>AI Tutor ({tutorCount})</span>
-                <span className={`text-[9px] px-1 py-0.2 rounded font-extrabold ml-0.5 ${
-                  viewMode === "tutor" ? "bg-white/20 text-white" : "bg-purple-900/60 text-purple-300"
-                }`}>
-                  MAIN
-                </span>
                 {weakSpotsCount > 0 && (
                   <span className="w-2 h-2 rounded-full bg-amber-400 absolute top-2 right-2" />
                 )}
@@ -491,11 +486,6 @@ const ExpandedChatRow = memo(function ExpandedChatRow({
           onDoubleClick={handleStartRename}
           className="truncate flex-1 pointer-events-none flex items-center gap-1.5"
         >
-          {chat.is_tutor && (
-            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-950/80 text-purple-300 border border-purple-800/40 shrink-0">
-              TUTOR
-            </span>
-          )}
           <span className="truncate">{chat.title}</span>
         </div>
       )}
@@ -602,11 +592,6 @@ const MinimizedChatButton = memo(function MinimizedChatButton({
           <Pin size={11} className="text-indigo-400 shrink-0" />
         ) : (
           <MessageSquare size={12} className="text-slate-400 shrink-0" />
-        )}
-        {chat.is_tutor && (
-          <span className="text-[10px] bg-purple-950 text-purple-300 font-semibold px-1 rounded">
-            TUTOR
-          </span>
         )}
         <span className="font-medium max-w-[200px] truncate">{chat.title}</span>
       </div>
