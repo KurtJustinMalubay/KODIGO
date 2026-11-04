@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Modal from "./Modal";
+import ConfirmDialog from "./ConfirmDialog";
 import {
   exportAcademicRecords,
   extractTextFromDocument,
@@ -43,6 +44,7 @@ export default function AcademicProfileModal({
   const [importStatus, setImportStatus] = useState("");
   const [importError, setImportError] = useState("");
   const [parsedPreview, setParsedPreview] = useState(null); // AI-parsed records awaiting confirmation
+  const [recordToDelete, setRecordToDelete] = useState(null);
   const [selectedPreview, setSelectedPreview] = useState({}); // which previewed records to import
   const krecInputRef = useRef(null);
   const docInputRef = useRef(null);
@@ -687,9 +689,7 @@ export default function AcademicProfileModal({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Delete ${rec.subject}?`)) {
-                            onDeleteRecord(rec.id);
-                          }
+                          setRecordToDelete(rec);
                         }}
                         className="text-xs text-slate-500 hover:text-red-400 p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
                       >
@@ -764,6 +764,19 @@ export default function AcademicProfileModal({
           </div>
         )}
       </div>
+      {recordToDelete && (
+        <ConfirmDialog
+          title="Delete academic record?"
+          message={`“${recordToDelete.subject}” and its assessments will be permanently deleted.`}
+          confirmLabel="Delete record"
+          danger
+          onCancel={() => setRecordToDelete(null)}
+          onConfirm={() => {
+            onDeleteRecord(recordToDelete.id);
+            setRecordToDelete(null);
+          }}
+        />
+      )}
     </Modal>
   );
 }

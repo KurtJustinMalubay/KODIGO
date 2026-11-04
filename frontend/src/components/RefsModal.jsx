@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Loader2, Plus, Trash2, HardDrive } from "lucide-react";
 import { api } from "../api";
 import Modal from "./Modal";
+import ConfirmDialog from "./ConfirmDialog";
 
 export default function RefsModal({ scope, title, onClose }) {
   const [references, setReferences] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [referenceToDelete, setReferenceToDelete] = useState(null);
   const fileRef = useRef(null);
 
   const load = async () => setReferences(await api.refs(scope));
@@ -79,10 +81,7 @@ export default function RefsModal({ scope, title, onClose }) {
               </span>
               <button
                 type="button"
-                onClick={async () => {
-                  await api.delRef(scope, reference.id);
-                  load();
-                }}
+                onClick={() => setReferenceToDelete(reference)}
                 className="text-slate-400 hover:text-red-400 p-1 rounded transition-colors"
                 title="Delete reference"
               >
@@ -91,6 +90,20 @@ export default function RefsModal({ scope, title, onClose }) {
             </div>
           ))}
         </div>
+      )}
+      {referenceToDelete && (
+        <ConfirmDialog
+          title="Delete reference?"
+          message={`“${referenceToDelete.filename}” will be permanently deleted from this device.`}
+          confirmLabel="Delete reference"
+          danger
+          onCancel={() => setReferenceToDelete(null)}
+          onConfirm={async () => {
+            await api.delRef(scope, referenceToDelete.id);
+            await load();
+            setReferenceToDelete(null);
+          }}
+        />
       )}
     </Modal>
   );

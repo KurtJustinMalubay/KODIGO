@@ -7,6 +7,7 @@ import {
   Loader2,
   Search,
 } from "lucide-react";
+import ConfirmDialog from "./ConfirmDialog";
 
 /** Modal for picking (or creating) a Google Drive folder */
 export function FolderPickerModal({ folders = [], onPick, onCreateNew, onClose }) {
@@ -114,6 +115,7 @@ export function FolderPickerModal({ folders = [], onPick, onCreateNew, onClose }
 /** Modal shown when both local and Drive have data */
 export function SyncConflictModal({ conflictInfo, onResolve, onClose }) {
   const { localInfo, driveInfo } = conflictInfo || {};
+  const [pendingResolution, setPendingResolution] = useState(null);
 
   const formatDate = (iso) => {
     if (!iso) return "unknown";
@@ -152,7 +154,7 @@ export function SyncConflictModal({ conflictInfo, onResolve, onClose }) {
         <div className="px-5 pb-5 space-y-2">
           <button
             type="button"
-            onClick={() => onResolve("merge")}
+            onClick={() => setPendingResolution("merge")}
             className="w-full flex flex-col items-start px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600/90 to-indigo-600/90 hover:from-purple-500 hover:to-indigo-500 text-white transition-all cursor-pointer"
           >
             <span className="text-xs font-bold">Merge Both</span>
@@ -162,7 +164,7 @@ export function SyncConflictModal({ conflictInfo, onResolve, onClose }) {
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => onResolve("keep-local")}
+              onClick={() => setPendingResolution("keep-local")}
               className="flex flex-col items-start px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs transition-colors cursor-pointer border border-slate-700"
             >
               <span className="font-semibold">Keep Local</span>
@@ -171,7 +173,7 @@ export function SyncConflictModal({ conflictInfo, onResolve, onClose }) {
 
             <button
               type="button"
-              onClick={() => onResolve("use-drive")}
+              onClick={() => setPendingResolution("use-drive")}
               className="flex flex-col items-start px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs transition-colors cursor-pointer border border-slate-700"
             >
               <span className="font-semibold">Use Drive</span>
@@ -180,6 +182,37 @@ export function SyncConflictModal({ conflictInfo, onResolve, onClose }) {
           </div>
         </div>
       </div>
+      {pendingResolution && (
+        <ConfirmDialog
+          title={
+            pendingResolution === "use-drive"
+              ? "Replace this device’s data?"
+              : pendingResolution === "keep-local"
+                ? "Overwrite Drive data?"
+                : "Merge device and Drive data?"
+          }
+          message={
+            pendingResolution === "use-drive"
+              ? "This replaces the chats, academic profile, and settings on this device with the Google Drive backup."
+              : pendingResolution === "keep-local"
+                ? "This replaces the existing Google Drive backup with the data currently on this device."
+                : "This combines data from this device and Google Drive. When records conflict, the newer record wins."
+          }
+          confirmLabel={
+            pendingResolution === "use-drive"
+              ? "Replace local data"
+              : pendingResolution === "keep-local"
+                ? "Overwrite Drive"
+                : "Merge data"
+          }
+          danger={pendingResolution !== "merge"}
+          onCancel={() => setPendingResolution(null)}
+          onConfirm={() => {
+            onResolve(pendingResolution);
+            setPendingResolution(null);
+          }}
+        />
+      )}
     </div>
   );
 }

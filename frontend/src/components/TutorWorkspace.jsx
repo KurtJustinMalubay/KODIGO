@@ -13,6 +13,7 @@ import { api, resolveUrl } from "../api";
 import { compressImage, extractTextOnDevice } from "../utils/imageOptimizer";
 import Md from "./Md";
 import InputBar from "./InputBar";
+import ConfirmDialog from "./ConfirmDialog";
 import { useTextToSpeech } from "../hooks/useSpeech";
 
 const TutorMessageItem = React.memo(function TutorMessageItem({
@@ -120,6 +121,7 @@ export default function TutorWorkspace({
   const [tutorMode, setTutorMode] = useState("quiz");
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [error, setError] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
   const endRef = useRef(null);
   const activeIdRef = useRef(currentSessionId);
   activeIdRef.current = currentSessionId;
@@ -262,13 +264,11 @@ export default function TutorWorkspace({
 
   const handleClear = async () => {
     if (!currentSessionId) return;
-    if (
-      confirm(
-        "Delete this tutoring session? Your academic profile will be saved."
-      )
-    ) {
+    try {
       await api.delChat(currentSessionId);
       if (onRefreshChats) await onRefreshChats();
+    } catch (requestError) {
+      setError(requestError.message || "Failed to delete tutoring session.");
     }
   };
 
@@ -305,18 +305,13 @@ export default function TutorWorkspace({
                 Socratic Method
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 truncate">
-              {tutorMode === "quiz"
-                ? "Professor-led practice, one question at a time."
-                : "Coaching tailored to your grades and weak spots."}
-            </p>
           </div>
         </div>
 
         {messages.length > 0 && (
           <button
             type="button"
-            onClick={handleClear}
+            onClick={() => setConfirmClear(true)}
             title="Delete this tutoring session"
             className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
           >
@@ -454,6 +449,19 @@ export default function TutorWorkspace({
         loading={loading}
         variant="tutor"
       />
+      {confirmClear && (
+        <ConfirmDialog
+          title="Delete tutoring session?"
+          message="This permanently deletes the session and its messages. Your academic profile will be kept."
+          confirmLabel="Delete session"
+          danger
+          onCancel={() => setConfirmClear(false)}
+          onConfirm={async () => {
+            setConfirmClear(false);
+            await handleClear();
+          }}
+        />
+      )}
     </div>
   );
 }

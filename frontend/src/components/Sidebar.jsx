@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import GoogleSyncStrip from "./GoogleSyncStrip";
+import ConfirmDialog from "./ConfirmDialog";
 
 function groupChats(chats) {
   const now = Date.now();
@@ -393,6 +394,7 @@ const ExpandedChatRow = memo(function ExpandedChatRow({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(chat.title);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const inputRef = useRef(null);
 
   const handleClick = useCallback(() => {
@@ -435,7 +437,7 @@ const ExpandedChatRow = memo(function ExpandedChatRow({
     (e) => {
       e.preventDefault();
       e.stopPropagation();
-      onDelete(chat.id);
+      setConfirmDelete(true);
     },
     [chat.id, onDelete]
   );
@@ -572,6 +574,19 @@ const ExpandedChatRow = memo(function ExpandedChatRow({
             <Trash2 size={12} />
           </button>
         </div>
+      )}
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete chat?"
+          message={`“${chat.title}” and its conversation history will be permanently deleted.`}
+          confirmLabel="Delete chat"
+          danger
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => {
+            setConfirmDelete(false);
+            onDelete(chat.id);
+          }}
+        />
       )}
     </div>
   );
