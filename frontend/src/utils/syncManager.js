@@ -6,16 +6,32 @@
  *   kodigo-chats.json    — chats + all their messages
  *   kodigo-refs.json     — all references (universal + per-chat)
  *   kodigo-academic.json — academic records
+ *   kodigo-settings.json — app preferences (API credentials remain device-local)
  */
 
 import { localDB } from "../db";
 import { findFile, uploadJson, downloadJson } from "./driveApi";
+import {
+  DEFAULT_SETTINGS,
+  getLocalSettings,
+  getLocalSettingsUpdatedAt,
+  saveLocalSettings,
+} from "../api";
 
 export const SYNC_FILENAMES = {
   chats: "kodigo-chats.json",
   refs: "kodigo-refs.json",
   academic: "kodigo-academic.json",
+  settings: "kodigo-settings.json",
 };
+
+const isCredentialSetting = (key) => /(api.?key|token|secret|password)/i.test(key);
+
+function getShareableSettings(settings) {
+  return Object.fromEntries(
+    Object.entries(settings).filter(([key]) => !isCredentialSetting(key))
+  );
+}
 
 // ─── Export: IndexedDB → plain JS objects ────────────────────────────────────
 
@@ -44,11 +60,18 @@ export async function exportLocalData() {
 
   // Get academic records
   const academic = await localDB.getAcademicRecords();
+  const settings = getLocalSettings() || { ...DEFAULT_SETTINGS };
 
   return {
     chats: { chats, messages: messagesMap, exportedAt: new Date().toISOString(), version: 2 },
     refs: { refs: allRefs, exportedAt: new Date().toISOString(), version: 2 },
     academic: { records: academic, exportedAt: new Date().toISOString(), version: 2 },
+    settings: {
+      settings: getShareableSettings(settings),
+      updatedAt: getLocalSettingsUpdatedAt(),
+      exportedAt: new Date().toISOString(),
+      version: 1,
+    },
   };
 }
 
@@ -129,6 +152,35 @@ async function importAcademicData(data) {
   });
 }
 
+/** Import shareable settings while preserving credentials saved on this device. */
+function importSettingsData(data, mode) {
+  if (!data?.settings || typeof data.settings !== "object") return;
+
+  const localSettings = getLocalSettings() || { ...DEFAULT_SETTINGS };
+  const remoteUpdatedAt = data.updatedAt || data.exportedAt || "";
+  const localUpdatedAt = getLocalSettingsUpdatedAt() || "";
+
+  if (
+    mode === "merge" &&
+    new Date(localUpdatedAt || 0).getTime() >=
+      new Date(remoteUpdatedAt || 0).getTime()
+  ) {
+    return;
+  }
+
+  const credentials = Object.fromEntries(
+    Object.entries(localSettings).filter(([key]) => isCredentialSetting(key))
+  );
+  saveLocalSettings(
+    {
+      ...localSettings,
+      ...getShareableSettings(data.settings),
+      ...credentials,
+    },
+    remoteUpdatedAt || new Date().toISOString()
+  );
+}
+
 // ─── Merge helpers ────────────────────────────────────────────────────────────
 
 /** Merge two arrays by ID, keeping the record with the newer updated_at */
@@ -179,11 +231,13 @@ export async function pullFromDrive(accessToken, folderId, mode = "merge", onPro
   const remoteChatsFile = await findFile(accessToken, folderId, SYNC_FILENAMES.chats);
   const remoteRefsFile = await findFile(accessToken, folderId, SYNC_FILENAMES.refs);
   const remoteAcademicFile = await findFile(accessToken, folderId, SYNC_FILENAMES.academic);
+  const remoteSettingsFile = await findFile(accessToken, folderId, SYNC_FILENAMES.settings);
 
-  const [remoteChats, remoteRefs, remoteAcademic] = await Promise.all([
+  const [remoteChats, remoteRefs, remoteAcademic, remoteSettings] = await Promise.all([
     remoteChatsFile ? downloadJson(accessToken, remoteChatsFile.id) : null,
     remoteRefsFile ? downloadJson(accessToken, remoteRefsFile.id) : null,
     remoteAcademicFile ? downloadJson(accessToken, remoteAcademicFile.id) : null,
+    remoteSettingsFile ? downloadJson(accessToken, remoteSettingsFile.id) : null,
   ]);
 
   if (mode === "replace") {
@@ -234,6 +288,11 @@ export async function pullFromDrive(accessToken, folderId, mode = "merge", onPro
     await importAcademicData(remoteAcademic);
   }
 
+  if (remoteSettings) {
+    onProgress("Applying app settings…");
+    importSettingsData(remoteSettings, mode);
+  }
+
   onProgress("Done");
   return { success: true, syncedAt: new Date().toISOString() };
 }
@@ -243,10 +302,20 @@ export async function pullFromDrive(accessToken, folderId, mode = "merge", onPro
  * Returns { hasData, chatsModifiedAt } for conflict detection.
  */
 export async function checkDriveHasData(accessToken, folderId) {
-  const file = await findFile(accessToken, folderId, SYNC_FILENAMES.chats);
+  const files = await Promise.all(
+    Object.values(SYNC_FILENAMES).map((filename) =>
+      findFile(accessToken, folderId, filename)
+    )
+  );
+  const existingFiles = files.filter(Boolean);
+  const modifiedTimes = existingFiles
+    .map((file) => file.modifiedTime)
+    .filter(Boolean)
+    .sort();
+  const modifiedAt = modifiedTimes[modifiedTimes.length - 1] || null;
   return {
-    hasData: !!file,
-    modifiedAt: file?.modifiedTime || null,
+    hasData: existingFiles.length > 0,
+    modifiedAt,
   };
 }
 
@@ -255,9 +324,19 @@ export async function checkDriveHasData(accessToken, folderId) {
  */
 export async function checkLocalHasData() {
   const chats = await localDB.getChats();
-  const academic = await localDB.getAcademicRecords();
+  const [academic, universalRefs, chatRefs] = await Promise.all([
+    localDB.getAcademicRecords(),
+    localDB.getReferences("universal"),
+    Promise.all(chats.map((chat) => localDB.getReferences(String(chat.id)))),
+  ]);
+  const settings = getLocalSettings();
+  const hasSettings = Boolean(settings?.setup_complete);
+  const referenceCount = universalRefs.length + chatRefs.reduce(
+    (count, refs) => count + refs.length,
+    0
+  );
   return {
-    hasData: chats.length > 0 || academic.length > 0,
+    hasData: chats.length > 0 || academic.length > 0 || referenceCount > 0 || hasSettings,
     chatCount: chats.length,
     academicCount: academic.length,
   };

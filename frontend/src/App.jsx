@@ -510,6 +510,13 @@ export default function App() {
     setSidebar((prev) => !prev);
   }, []);
 
+  const refreshAfterSync = useCallback(async () => {
+    await Promise.all([refreshChats(), loadAcademicRecords()]);
+    const restoredSettings = api.getSettingsSync();
+    setSettings(restoredSettings);
+    if (restoredSettings.default_mode) setMode(restoredSettings.default_mode);
+  }, [loadAcademicRecords, refreshChats]);
+
   // ── Google Drive Sync (optional) ─────────────────────────────────────────
   const {
     user: googleUser,
@@ -527,7 +534,7 @@ export default function App() {
     signIn: googleSignIn,
     signOut: googleSignOut,
     manualSync,
-  } = useGoogleDriveSync({ onSyncComplete: refreshChats });
+  } = useGoogleDriveSync({ onSyncComplete: refreshAfterSync });
 
   // Theme & font-size styling classes
   const themeClass = useMemo(() => {

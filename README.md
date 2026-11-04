@@ -27,3 +27,6 @@ npm run dev
 ```
 
 Open the frontend at http://localhost:5173. Choose an AI provider and model in the first-run setup; provider, model, and OCR settings can be changed later in the in-app Settings panel.
+
+## Google Drive sync
+Google Drive sync backs up chats, references, academic profiles, and shareable app preferences in the selected KODIGO folder. API keys and other credential-like settings are excluded from Drive and remain on the device where they were entered. When syncing settings from another device, enter its API keys locally in Settings.

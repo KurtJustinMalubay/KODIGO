@@ -16,6 +16,7 @@ export function warmupBackend() {
 warmupBackend();
 
 const SETTINGS_KEY = "kodigo_device_settings";
+const SETTINGS_UPDATED_KEY = "kodigo_device_settings_updated_at";
 
 export const DEFAULT_SETTINGS = {
   provider: "gemini",
@@ -57,9 +58,19 @@ export function getLocalSettings() {
   return null;
 }
 
-export function saveLocalSettings(settings) {
+export function getLocalSettingsUpdatedAt() {
+  try {
+    return localStorage.getItem(SETTINGS_UPDATED_KEY);
+  } catch (e) {
+    console.warn("Failed to load settings update time:", e);
+    return null;
+  }
+}
+
+export function saveLocalSettings(settings, updatedAt = new Date().toISOString()) {
   try {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    localStorage.setItem(SETTINGS_UPDATED_KEY, updatedAt);
   } catch (e) {
     console.warn("Failed to save settings to localStorage:", e);
   }

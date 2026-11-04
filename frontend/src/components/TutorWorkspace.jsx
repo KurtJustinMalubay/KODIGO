@@ -113,6 +113,7 @@ export default function TutorWorkspace({
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [sttError, setSttError] = useState("");
 
+  const inputRef = useRef(null);
   const { listening, start: startSTT, stop: stopSTT } = useSpeechToText({
     onResult: (transcript) => {
       setInput((prev) => (prev ? prev + " " + transcript : transcript));
@@ -127,6 +128,14 @@ export default function TutorWorkspace({
   const endRef = useRef(null);
   const activeIdRef = useRef(currentSessionId);
   activeIdRef.current = currentSessionId;
+
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 140)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 140 ? "auto" : "hidden";
+  }, [input]);
 
   // Load messages for the selected tutor session
   useEffect(() => {
@@ -506,7 +515,7 @@ export default function TutorWorkspace({
             </div>
           )}
 
-          <div className="flex items-center gap-2 bg-slate-900/90 border border-violet-800/50 rounded-2xl px-3 py-2 focus-within:border-violet-500 focus-within:shadow-sm focus-within:shadow-violet-500/10 transition-all">
+          <div className="flex items-end gap-2 bg-slate-900/90 border border-violet-800/50 rounded-2xl px-3 py-2 focus-within:border-violet-500 focus-within:shadow-sm focus-within:shadow-violet-500/10 transition-all">
             <input
               ref={fileInputRef}
               type="file"
@@ -526,6 +535,7 @@ export default function TutorWorkspace({
             </button>
 
             <textarea
+              ref={inputRef}
               rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -536,7 +546,7 @@ export default function TutorWorkspace({
                 }
               }}
               placeholder={listening ? "Listening…" : "Ask your coach anything, request a practice problem, or paste a question..."}
-              className="flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none max-h-32"
+              className="flex-1 min-h-[40px] max-h-[140px] bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none overflow-y-hidden"
             />
 
             {/* Built-in Speech-to-Text Mic button (Always visible on Desktop & Mobile) */}
