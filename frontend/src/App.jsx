@@ -10,6 +10,8 @@ import SetupWizard from "./components/SetupWizard";
 import Sidebar from "./components/Sidebar";
 import TutorWorkspace from "./components/TutorWorkspace";
 import { compressImage, extractTextOnDevice } from "./utils/imageOptimizer";
+import { useGoogleDriveSync } from "./hooks/useGoogleDriveSync";
+import { FolderPickerModal, SyncConflictModal } from "./components/SyncModals";
 
 export default function App() {
   const [viewMode, setViewMode] = useState(() => {
@@ -508,6 +510,25 @@ export default function App() {
     setSidebar((prev) => !prev);
   }, []);
 
+  // ── Google Drive Sync (optional) ─────────────────────────────────────────
+  const {
+    user: googleUser,
+    lastSyncedAt,
+    syncing,
+    syncStatus,
+    syncError,
+    showFolderPicker,
+    folders,
+    handleFolderChosen,
+    handleCreateFolder,
+    showConflictModal,
+    conflictInfo,
+    resolveConflict,
+    signIn: googleSignIn,
+    signOut: googleSignOut,
+    manualSync,
+  } = useGoogleDriveSync({ onSyncComplete: refreshChats });
+
   // Theme & font-size styling classes
   const themeClass = useMemo(() => {
     if (settings?.theme === "amoled") return "bg-black text-slate-100";
@@ -554,6 +575,14 @@ export default function App() {
           onExport={exportChat}
           onImport={importChat}
           onClose={() => setSidebar(false)}
+          googleUser={googleUser}
+          lastSyncedAt={lastSyncedAt}
+          syncing={syncing}
+          syncStatus={syncStatus}
+          syncError={syncError}
+          onGoogleSignIn={googleSignIn}
+          onGoogleSignOut={googleSignOut}
+          onGoogleSync={manualSync}
         />
         {viewMode === "tutor" ? (
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden border-r border-slate-700/60">
@@ -625,6 +654,22 @@ export default function App() {
       )}
       {!settings.setup_complete && (
         <SetupWizard savedSettings={settings} onComplete={completeSetup} />
+      )}
+
+      {/* Google Drive Sync Modals */}
+      {showFolderPicker && (
+        <FolderPickerModal
+          folders={folders}
+          onPick={handleFolderChosen}
+          onCreateNew={handleCreateFolder}
+          onClose={() => {}}
+        />
+      )}
+      {showConflictModal && (
+        <SyncConflictModal
+          conflictInfo={conflictInfo}
+          onResolve={resolveConflict}
+        />
       )}
     </div>
   );

@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import GoogleSyncStrip from "./GoogleSyncStrip";
 
 function groupChats(chats) {
   const now = Date.now();
@@ -62,6 +63,14 @@ export default function Sidebar({
   onImport,
   onClose,
   onSettings,
+  googleUser,
+  lastSyncedAt,
+  syncing,
+  syncStatus,
+  syncError,
+  onGoogleSignIn,
+  onGoogleSignOut,
+  onGoogleSync,
 }) {
   const [query, setQuery] = useState("");
   const fileInputRef = useRef(null);
@@ -344,6 +353,20 @@ export default function Sidebar({
             ))}
           </div>
         )}
+        {/* Google Sync Strip */}
+        <div className={`px-2 pb-3 pt-2 border-t border-slate-800/60 ${open ? "" : "flex justify-center"}`}>
+          <GoogleSyncStrip
+            user={googleUser}
+            lastSyncedAt={lastSyncedAt}
+            syncing={syncing}
+            syncStatus={syncStatus}
+            syncError={syncError}
+            onSignIn={onGoogleSignIn}
+            onSignOut={onGoogleSignOut}
+            onSync={onGoogleSync}
+            sidebarOpen={open}
+          />
+        </div>
       </aside>
     </>
   );
