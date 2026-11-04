@@ -5,7 +5,6 @@ import {
   GraduationCap,
   Loader2,
   Sparkles,
-  Trash2,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -13,7 +12,6 @@ import { api, resolveUrl } from "../api";
 import { compressImage, extractTextOnDevice } from "../utils/imageOptimizer";
 import Md from "./Md";
 import InputBar from "./InputBar";
-import ConfirmDialog from "./ConfirmDialog";
 import { useTextToSpeech } from "../hooks/useSpeech";
 
 const TutorMessageItem = React.memo(function TutorMessageItem({
@@ -121,7 +119,6 @@ export default function TutorWorkspace({
   const [tutorMode, setTutorMode] = useState("quiz");
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [error, setError] = useState("");
-  const [confirmClear, setConfirmClear] = useState(false);
   const endRef = useRef(null);
   const activeIdRef = useRef(currentSessionId);
   activeIdRef.current = currentSessionId;
@@ -262,16 +259,6 @@ export default function TutorWorkspace({
     }
   };
 
-  const handleClear = async () => {
-    if (!currentSessionId) return;
-    try {
-      await api.delChat(currentSessionId);
-      if (onRefreshChats) await onRefreshChats();
-    } catch (requestError) {
-      setError(requestError.message || "Failed to delete tutoring session.");
-    }
-  };
-
   const starterPrompts = [
     ...(weakSpots.length > 0
       ? [
@@ -287,39 +274,6 @@ export default function TutorWorkspace({
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-slate-950/80 overflow-hidden">
-      {/* Top Coach Header Bar */}
-      <div className="px-3 sm:px-4 py-3 border-b border-violet-900/40 bg-slate-900/80 flex items-center justify-between gap-2 min-w-0">
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <div className="w-9 h-9 rounded-xl bg-violet-600/15 border border-violet-500/35 flex items-center justify-center text-violet-300 shrink-0">
-            <GraduationCap size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm font-extrabold text-white tracking-wide truncate">
-                KODIGO Academic Coach
-              </h2>
-              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-200 border border-violet-500/30 shrink-0 tracking-widest uppercase">
-                AI Tutor
-              </span>
-              <span className="hidden sm:inline text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700 shrink-0">
-                Socratic Method
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {messages.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setConfirmClear(true)}
-            title="Delete this tutoring session"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <Trash2 size={16} />
-          </button>
-        )}
-      </div>
-
       {/* Weakness Alert Strip */}
       {weakSpots.length > 0 && (
         <div className="px-4 py-2 bg-amber-950/40 border-b border-amber-900/30 flex items-center justify-between gap-2 overflow-x-auto select-none">
@@ -449,19 +403,6 @@ export default function TutorWorkspace({
         loading={loading}
         variant="tutor"
       />
-      {confirmClear && (
-        <ConfirmDialog
-          title="Delete tutoring session?"
-          message="This permanently deletes the session and its messages. Your academic profile will be kept."
-          confirmLabel="Delete session"
-          danger
-          onCancel={() => setConfirmClear(false)}
-          onConfirm={async () => {
-            setConfirmClear(false);
-            await handleClear();
-          }}
-        />
-      )}
     </div>
   );
 }
