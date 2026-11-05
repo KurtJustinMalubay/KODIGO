@@ -14,7 +14,7 @@ import {
  * or a subtle "Sign in with Google" button if not.
  */
 export default function GoogleSyncStrip({
-  user,            // { name, email, picture } or null
+  user,            // { email } or null
   lastSyncedAt,    // ISO string or null
   syncing,
   syncStatus,
@@ -71,7 +71,7 @@ export default function GoogleSyncStrip({
           </span>
         </button>
         <p className="px-1 text-[10px] leading-relaxed text-slate-500">
-          Chats, references, academic profile, and preferences sync. API keys stay on this device.
+          Only KODIGO backup files sync. API keys stay on this device.
         </p>
       </div>
     );
@@ -96,14 +96,9 @@ export default function GoogleSyncStrip({
             <RefreshCw size={16} />
           )}
         </button>
-        {user.picture && (
-          <img
-            src={user.picture}
-            alt={user.name}
-            title={user.name}
-            className="w-7 h-7 rounded-full ring-1 ring-slate-600 object-cover"
-          />
-        )}
+        <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+          {(user.email || "G")[0].toUpperCase()}
+        </div>
       </div>
     );
   }
@@ -131,17 +126,9 @@ export default function GoogleSyncStrip({
       <div className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-800/50 transition-colors group relative">
         {/* Avatar */}
         <div className="shrink-0 relative">
-          {user.picture ? (
-            <img
-              src={user.picture}
-              alt={user.name}
-              className="w-7 h-7 rounded-full ring-1 ring-slate-600 object-cover"
-            />
-          ) : (
-            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
-              {(user.name || user.email || "?")[0].toUpperCase()}
-            </div>
-          )}
+          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+            {(user.email || "G")[0].toUpperCase()}
+          </div>
           {/* Online dot */}
           <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-400 ring-1 ring-slate-900" />
         </div>
@@ -149,7 +136,7 @@ export default function GoogleSyncStrip({
         {/* Name + last synced — with right fade */}
         <div className="flex-1 min-w-0 relative">
           <div className="relative overflow-hidden">
-            <p className="text-xs font-medium text-slate-200 truncate pr-6">{user.name || user.email}</p>
+            <p className="text-xs font-medium text-slate-200 truncate pr-6">{user.email || "Google account"}</p>
             {/* Fade gradient on right */}
             <div className="absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-slate-900 to-transparent pointer-events-none" />
           </div>
@@ -185,7 +172,7 @@ export default function GoogleSyncStrip({
         </button>
       </div>
       <p className="px-2 text-[10px] leading-relaxed text-slate-500">
-        Chats, references, academic profile, and preferences sync. API keys stay on this device.
+        Only KODIGO backup files sync. API keys stay on this device.
       </p>
     </div>
   );

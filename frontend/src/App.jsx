@@ -12,7 +12,7 @@ import Sidebar from "./components/Sidebar";
 import TutorWorkspace from "./components/TutorWorkspace";
 import { compressImage, extractTextOnDevice } from "./utils/imageOptimizer";
 import { useGoogleDriveSync } from "./hooks/useGoogleDriveSync";
-import { FolderPickerModal, SyncConflictModal } from "./components/SyncModals";
+import { SyncConflictModal } from "./components/SyncModals";
 
 const PRIVACY_ACCEPTANCE_KEY = "kodigo_privacy_terms_accepted_v1";
 
@@ -538,10 +538,6 @@ export default function App() {
     syncing,
     syncStatus,
     syncError,
-    showFolderPicker,
-    folders,
-    handleFolderChosen,
-    handleCreateFolder,
     showConflictModal,
     conflictInfo,
     resolveConflict,
@@ -659,14 +655,6 @@ export default function App() {
       )}
 
       {/* Google Drive Sync Modals */}
-      {showFolderPicker && (
-        <FolderPickerModal
-          folders={folders}
-          onPick={handleFolderChosen}
-          onCreateNew={handleCreateFolder}
-          onClose={() => {}}
-        />
-      )}
       {showConflictModal && (
         <SyncConflictModal
           conflictInfo={conflictInfo}

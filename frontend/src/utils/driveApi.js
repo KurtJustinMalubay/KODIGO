@@ -7,30 +7,18 @@
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3";
 
-/** Fetch the signed-in user's Google profile info */
+/** Fetch only the signed-in user's email address */
 export async function fetchUserInfo(accessToken) {
   const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) throw new Error("Failed to fetch user info");
-  return res.json(); // { id, email, name, picture, ... }
+  const userInfo = await res.json();
+  if (!userInfo.email) throw new Error("Google did not return an account email");
+  return { email: userInfo.email };
 }
 
-/** List all Drive folders the user owns or can see */
-export async function listFolders(accessToken) {
-  const q = encodeURIComponent(
-    "mimeType='application/vnd.google-apps.folder' and trashed=false"
-  );
-  const res = await fetch(
-    `${DRIVE_API}/files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=name&pageSize=100`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  );
-  if (!res.ok) throw new Error("Failed to list folders");
-  const data = await res.json();
-  return data.files || [];
-}
-
-/** Create a new folder in Drive root */
+/** Create the app-owned sync folder in Drive root */
 export async function createFolder(accessToken, name = "KODIGO Sync") {
   const res = await fetch(`${DRIVE_API}/files`, {
     method: "POST",

@@ -2,14 +2,14 @@
  * useGoogleDriveSync — master hook for Google Auth + Drive sync state.
  *
  * Persists:
- *   kodigo_google_user     — { id, email, name, picture }
- *   kodigo_drive_folder_id — chosen Drive folder ID
+ *   kodigo_google_user     — { email }
+ *   kodigo_drive_folder_id — KODIGO sync folder ID
  *   kodigo_last_synced_at  — ISO timestamp of last successful sync
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
-import { fetchUserInfo, listFolders, createFolder } from "../utils/driveApi";
+import { fetchUserInfo, createFolder } from "../utils/driveApi";
 import {
   checkDriveHasData,
   checkLocalHasData,
@@ -19,19 +19,34 @@ import {
 
 const SCOPES = [
   "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/userinfo.profile",
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
 const LS_USER = "kodigo_google_user";
 const LS_FOLDER = "kodigo_drive_folder_id";
+const LS_FOLDER_ACCOUNT = "kodigo_drive_folder_account";
 const LS_SYNCED = "kodigo_last_synced_at";
+
+function loadSavedUser() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_USER));
+    if (!saved?.email) return null;
+    localStorage.setItem(LS_USER, JSON.stringify({ email: saved.email }));
+    if (
+      localStorage.getItem(LS_FOLDER) &&
+      !localStorage.getItem(LS_FOLDER_ACCOUNT)
+    ) {
+      localStorage.setItem(LS_FOLDER_ACCOUNT, saved.email);
+    }
+    return { email: saved.email };
+  } catch {
+    return null;
+  }
+}
 
 export function useGoogleDriveSync({ onSyncComplete } = {}) {
   // ── Persistent state ──────────────────────────────────────────────────────
-  const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LS_USER)); } catch { return null; }
-  });
+  const [user, setUser] = useState(loadSavedUser);
   const [folderId, setFolderId] = useState(() =>
     localStorage.getItem(LS_FOLDER) || null
   );
@@ -47,10 +62,8 @@ export function useGoogleDriveSync({ onSyncComplete } = {}) {
   const [syncStatus, setSyncStatus] = useState(""); // progress text
   const [syncError, setSyncError] = useState("");
 
-  // Conflict / folder-picker modal state
-  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  // Conflict modal state
   const [showConflictModal, setShowConflictModal] = useState(false);
-  const [folders, setFolders] = useState([]);
   const [conflictInfo, setConflictInfo] = useState(null);
 
   // Pending action after folder is chosen / conflict resolved
@@ -85,17 +98,18 @@ export function useGoogleDriveSync({ onSyncComplete } = {}) {
 
     try {
       const userInfo = await fetchUserInfo(token);
-      saveUser(userInfo);
+      saveUser({ email: userInfo.email });
 
       // If we already have a saved folder, go straight to sync
       const savedFolder = localStorage.getItem(LS_FOLDER);
-      if (savedFolder) {
+      const savedFolderAccount = localStorage.getItem(LS_FOLDER_ACCOUNT);
+      if (savedFolder && savedFolderAccount === userInfo.email) {
         await beginSync(token, savedFolder);
       } else {
-        // Open folder picker
-        const folderList = await listFolders(token);
-        setFolders(folderList);
-        setShowFolderPicker(true);
+        const folder = await createFolder(token, "KODIGO Sync");
+        saveFolder(folder.id);
+        localStorage.setItem(LS_FOLDER_ACCOUNT, userInfo.email);
+        await beginSync(token, folder.id);
       }
     } catch (err) {
       setSyncError("Sign-in failed: " + err.message);
@@ -116,31 +130,11 @@ export function useGoogleDriveSync({ onSyncComplete } = {}) {
     setAccessToken(null);
     tokenExpiryRef.current = null;
     saveUser(null);
-    saveFolder(null);
     setLastSyncedAt(null);
     localStorage.removeItem(LS_SYNCED);
     setSyncError("");
     setSyncStatus("");
-  }, [saveUser, saveFolder]);
-
-  // ── Folder picker ─────────────────────────────────────────────────────────
-
-  const handleFolderChosen = useCallback(async (chosenFolderId) => {
-    setShowFolderPicker(false);
-    saveFolder(chosenFolderId);
-    await beginSync(accessToken, chosenFolderId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, saveFolder]);
-
-  const handleCreateFolder = useCallback(async (name = "KODIGO Sync") => {
-    try {
-      const folder = await createFolder(accessToken, name);
-      setFolders((prev) => [...prev, folder]);
-      await handleFolderChosen(folder.id);
-    } catch (err) {
-      setSyncError("Failed to create folder: " + err.message);
-    }
-  }, [accessToken, handleFolderChosen]);
+  }, [saveUser]);
 
   // ── Core sync logic ───────────────────────────────────────────────────────
 
@@ -247,13 +241,6 @@ export function useGoogleDriveSync({ onSyncComplete } = {}) {
     syncStatus,
     syncError,
     setSyncError,
-
-    // Folder picker modal
-    showFolderPicker,
-    setShowFolderPicker,
-    folders,
-    handleFolderChosen,
-    handleCreateFolder,
 
     // Conflict modal
     showConflictModal,

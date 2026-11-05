@@ -11,7 +11,7 @@ const sections = [
   },
   {
     title: "Optional Google Drive sync",
-    body: "If you sign in and sync, KODIGO accesses your Google profile and the Drive files needed for sync, and uploads or downloads your selected KODIGO backup in your Google Drive. Sync is optional; you can sign out in the app.",
+    body: "If you sign in and sync, KODIGO requests Google's drive.file permission. New sync setups create a KODIGO Sync folder; existing setups keep the folder you previously selected. The app searches and transfers only its named backup files, does not browse Drive folders, and does not read unrelated files. KODIGO requests your email only to identify the connected account, not your profile photo or name. Your email and folder association remain in this browser so the correct backup is reused if you sign in again. Sync is optional; you can sign out in the app.",
   },
   {
     title: "Collection and privacy",
