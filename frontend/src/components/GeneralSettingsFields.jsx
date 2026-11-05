@@ -15,71 +15,50 @@ function Field({ label, children }) {
 export default function GeneralSettingsFields({ settings, setSettings }) {
   const set = (key) => (event) =>
     setSettings((current) => ({ ...current, [key]: event.target.value }));
+  const setBoolean = (key) => (event) =>
+    setSettings((current) => ({ ...current, [key]: event.target.checked }));
 
   return (
     <div className="space-y-4">
-      <Field label="Chat Font Size">
+      <Field label="Recent Chat Context">
         <select
           className={inputClass}
-          value={settings.font_size || "medium"}
-          onChange={set("font_size")}
+          value={settings.history_limit || 10}
+          onChange={set("history_limit")}
         >
-          <option value="small">Small (13px)</option>
-          <option value="medium">Medium (Default, 14px)</option>
-          <option value="large">Large (16px)</option>
-          <option value="xlarge">Extra Large (18px)</option>
+          <option value={5}>5 messages</option>
+          <option value={10}>10 messages (Default)</option>
+          <option value={20}>20 messages</option>
         </select>
       </Field>
 
-      <Field label="Theme">
+      <Field label="Reference & Profile Context">
         <select
           className={inputClass}
-          value={settings.theme || "dark"}
-          onChange={set("theme")}
+          value={settings.context_limit || 12000}
+          onChange={set("context_limit")}
         >
-          <option value="dark">Slate Dark (Default)</option>
-          <option value="amoled">AMOLED Pitch Black</option>
-          <option value="midnight">Midnight Indigo</option>
-          <option value="light">Light Crisp (Clean White)</option>
-          <option value="warm-light">Light Warm (Paper / Sepia)</option>
+          <option value={12000}>12,000 characters (Default)</option>
+          <option value={24000}>24,000 characters</option>
+          <option value={48000}>48,000 characters</option>
         </select>
       </Field>
 
-      <Field label="Message Timestamps">
-        <select
-          className={inputClass}
-          value={settings.show_timestamps ? "true" : "false"}
-          onChange={(e) =>
-            setSettings((curr) => ({
-              ...curr,
-              show_timestamps: e.target.value === "true",
-            }))
-          }
-        >
-          <option value="false">Hidden (Cleaner)</option>
-          <option value="true">Enabled</option>
-        </select>
-      </Field>
-
-      <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 mt-4 flex items-center gap-3">
-        <img
-          src="/kodigo.png"
-          alt="KODIGO Logo"
-          className="w-10 h-10 rounded-xl object-contain shadow-sm shrink-0 ring-1 ring-slate-800"
+      <label className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3.5 py-3 cursor-pointer">
+        <span className="text-sm font-medium text-slate-200">
+          Message timestamps
+        </span>
+        <input
+          type="checkbox"
+          checked={Boolean(settings.show_timestamps)}
+          onChange={setBoolean("show_timestamps")}
+          className="peer sr-only"
         />
-        <div>
-          <h4 className="text-xs font-semibold text-slate-200 mb-0.5">
-            KODIGO
-          </h4>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Created and developed by{" "}
-            <span className="font-semibold text-indigo-400">
-              Kurt Justin J. Malubay
-            </span>{" "}
-            (SASHIMI24).
-          </p>
-        </div>
-      </div>
+        <span
+          aria-hidden="true"
+          className="relative h-6 w-11 shrink-0 rounded-full bg-slate-700 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-indigo-600 peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-400"
+        />
+      </label>
     </div>
   );
 }

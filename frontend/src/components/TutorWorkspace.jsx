@@ -263,7 +263,6 @@ export default function TutorWorkspace({
   activeId,
   activeChat,
   records = [],
-  theme,
   onRefreshChats,
   onNewTutorChat,
   showTimestamps = false,
@@ -444,15 +443,7 @@ export default function TutorWorkspace({
   ];
 
   return (
-    <div
-      className={`flex-1 flex flex-col min-w-0 overflow-hidden ${
-        theme === "light"
-          ? "bg-slate-100/90 text-slate-900"
-          : theme === "warm-light"
-            ? "bg-[#f4efe4] text-stone-900"
-            : "bg-slate-950/80 text-slate-100"
-      }`}
-    >
+    <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-950/80 text-slate-100">
       {/* Weakness Alert Strip */}
       {weakSpots.length > 0 && (
         <div className="px-3 sm:px-4 py-2 bg-amber-950/40 border-b border-amber-900/30 flex items-center justify-between gap-2 overflow-x-auto select-none">

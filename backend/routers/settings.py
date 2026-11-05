@@ -36,7 +36,7 @@ def write_settings(body: dict = Body(...), db: Session = Depends(get_db)):
         raise HTTPException(400, "Unsupported AI provider.")
     if ocr_provider not in OCR_PROVIDERS:
         raise HTTPException(400, "Unsupported OCR provider.")
-    for field in ("provider", "model_name", "ollama_url", "default_mode", "font_size", "theme"):
+    for field in ("provider", "model_name", "ollama_url", "default_mode"):
         if field in body:
             setattr(settings, field, body[field])
     settings.ocr_provider = ocr_provider

@@ -18,8 +18,6 @@ def migrate_settings():
         "setup_complete": "BOOLEAN NOT NULL DEFAULT 0",
         "ocr_provider": "VARCHAR DEFAULT 'online'",
         "ocr_api_key": "VARCHAR",
-        "font_size": "VARCHAR DEFAULT 'medium'",
-        "theme": "VARCHAR DEFAULT 'dark'",
     }
     with engine.begin() as connection:
         for column, definition in additions.items():

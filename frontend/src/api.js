@@ -28,8 +28,8 @@ export const DEFAULT_SETTINGS = {
   key_mode: "free", // "free" = built-in free tier, "custom" = user custom key
   ocr_provider: "paddleocr",
   default_mode: "quiz",
-  font_size: "medium",
-  theme: "dark",
+  history_limit: 10,
+  context_limit: 12000,
   setup_complete: false,
 };
 
@@ -38,6 +38,8 @@ export function getLocalSettings() {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      delete parsed.theme;
+      delete parsed.font_size;
       const merged = { ...DEFAULT_SETTINGS, ...parsed };
 
       // Migrate stale model names (pre-v3.5-lite model) back to recommended for free tier
@@ -71,7 +73,10 @@ export function getLocalSettingsUpdatedAt() {
 
 export function saveLocalSettings(settings, updatedAt = new Date().toISOString()) {
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    const savedSettings = { ...settings };
+    delete savedSettings.theme;
+    delete savedSettings.font_size;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(savedSettings));
     localStorage.setItem(SETTINGS_UPDATED_KEY, updatedAt);
   } catch (e) {
     console.warn("Failed to save settings to localStorage:", e);
@@ -168,8 +173,17 @@ export const api = {
   // === AI INFERENCE (Stateless Render Compute + Local Persistence + Live Streaming) ===
   send: async (id, content, mode, file, clientOcrText = "", subjectFilter = null, onChunk = null, quizLength = 5) => {
     // 1. Gather history only when the selected mode needs it, alongside context reads.
+    const localSettings = getLocalSettings();
+    const historyLimit = [5, 10, 20].includes(Number(localSettings?.history_limit))
+      ? Number(localSettings.history_limit)
+      : 10;
+    const contextLimit = [12000, 24000, 48000].includes(Number(localSettings?.context_limit))
+      ? Number(localSettings.context_limit)
+      : 12000;
     const [localMsgs, referenceContext, academicContext] = await Promise.all([
-      mode === "tutor_quiz" ? Promise.resolve([]) : localDB.getRecentMessages(id, 10),
+      mode === "tutor_quiz"
+        ? Promise.resolve([])
+        : localDB.getRecentMessages(id, historyLimit),
       localDB.buildContextText(id),
       mode === "tutor" || mode === "tutor_quiz"
         ? localDB.buildAcademicContext(subjectFilter)
@@ -184,7 +198,7 @@ export const api = {
     const contextText = [academicContext, referenceContext]
       .filter(Boolean)
       .join("\n\n")
-      .slice(0, 12000);
+      .slice(0, contextLimit);
 
     // 3. Prepare payload for Render AI compute
     const f = new FormData();
@@ -194,6 +208,7 @@ export const api = {
     if (clientOcrText) f.append("client_ocr_text", clientOcrText);
     f.append("history_json", JSON.stringify(mode === "tutor_quiz" ? [] : history));
     f.append("context_text", contextText);
+    f.append("context_limit", String(contextLimit));
     if (mode === "tutor_quiz") {
       f.append("quiz_length", String(quizLength));
     }

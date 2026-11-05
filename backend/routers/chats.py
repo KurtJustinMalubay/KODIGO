@@ -134,10 +134,11 @@ def _parse_tutor_quiz_response(content: str, expected_count: int):
 
 async def _generate_tutor_quiz(settings, system, messages, image_bytes, image_mime, expected_count):
     quiz_prompt = system.replace("{question_count}", str(expected_count))
+    retry_format = False
 
-    for attempt in range(2):
+    for attempt in range(3):
         retry_prompt = quiz_prompt
-        if attempt:
+        if retry_format:
             retry_prompt += (
                 f"\n\nThe previous response did not match the required schema. Return "
                 f"valid JSON with exactly {expected_count} complete questions. No prose."
@@ -153,16 +154,17 @@ async def _generate_tutor_quiz(settings, system, messages, image_bytes, image_mi
             )
         except RuntimeError as error:
             retryable_statuses = ("(429)", "(500)", "(502)", "(503)", "(504)")
-            if attempt or not any(
+            if attempt >= 2 or not any(
                 status in str(error) for status in retryable_statuses
             ):
                 raise
-            await asyncio.sleep(1)
+            await asyncio.sleep(attempt + 1)
             continue
 
         parsed = _parse_tutor_quiz_response(reply, expected_count)
         if parsed:
             return parsed
+        retry_format = True
 
     raise RuntimeError(
         "The AI could not generate a complete quiz. Please try again or choose a shorter quiz."
@@ -324,6 +326,7 @@ async def _prepare_chat_context(
     client_ocr_text: str,
     history_json: str,
     context_text: str,
+    context_limit: int,
     quiz_length: int,
     db: Session,
     request: Request,
@@ -393,7 +396,8 @@ async def _prepare_chat_context(
 
     reference_corpus = context_text.strip() if context_text else (build_context(db, chat.id) if chat.id else "")
     if reference_corpus:
-        system += "\n\nReference material:\n" + reference_corpus[:12000]
+        context_limit = context_limit if context_limit in (12000, 24000, 48000) else 12000
+        system += "\n\nReference material:\n" + reference_corpus[:context_limit]
 
     history = []
     if history_json and history_json.strip():
@@ -440,6 +444,7 @@ async def stream_chat_message(
     client_ocr_text: str = Form(""),
     history_json: str = Form(""),
     context_text: str = Form(""),
+    context_limit: int = Form(12000),
     quiz_length: int = Form(5),
     db: Session = Depends(get_db),
 ):
@@ -455,6 +460,7 @@ async def stream_chat_message(
         client_ocr_text=client_ocr_text,
         history_json=history_json,
         context_text=context_text,
+        context_limit=context_limit,
         quiz_length=quiz_length if quiz_length in (5, 10, 15) else 5,
         db=db,
         request=request,
@@ -568,6 +574,7 @@ async def send_message(
     client_ocr_text: str = Form(""),
     history_json: str = Form(""),
     context_text: str = Form(""),
+    context_limit: int = Form(12000),
     quiz_length: int = Form(5),
     db: Session = Depends(get_db),
 ):
@@ -579,6 +586,7 @@ async def send_message(
         client_ocr_text=client_ocr_text,
         history_json=history_json,
         context_text=context_text,
+        context_limit=context_limit,
         quiz_length=quiz_length if quiz_length in (5, 10, 15) else 5,
         db=db,
         request=request,
@@ -614,6 +622,11 @@ async def send_message(
                 image_mime=image_mime,
             )
     except Exception as error:
+        if active_mode == "tutor_quiz" and "Google Gemini error (503)" in str(error):
+            raise HTTPException(
+                503,
+                "Gemini is temporarily overloaded. Please retry shortly. If it continues, choose another model or AI provider in Settings.",
+            ) from error
         raise HTTPException(502, f"AI provider error: {error}") from error
 
     user_data = {

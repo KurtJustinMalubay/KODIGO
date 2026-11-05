@@ -1,16 +1,18 @@
 import React, { useState } from "react";
-import { Sliders, Palette } from "lucide-react";
+import { Sliders, MessageSquare } from "lucide-react";
 import Modal from "./Modal";
 import SetupSettingsFields from "./SetupSettingsFields";
 import GeneralSettingsFields from "./GeneralSettingsFields";
 
 const CATEGORIES = [
   { id: "setup", label: "Setup & AI", icon: Sliders },
-  { id: "general", label: "General & Appearance", icon: Palette },
+  { id: "general", label: "Conversation & Context", icon: MessageSquare },
 ];
 
 export default function SettingsModal({ settings, onSave, onClose }) {
-  const [activeTab, setActiveTab] = useState("setup");
+  const [activeTab, setActiveTab] = useState(
+    settings.setup_complete ? "general" : "setup",
+  );
   const [value, setValue] = useState({
     ...settings,
     cloud_api_key: settings.cloud_api_key || "",
