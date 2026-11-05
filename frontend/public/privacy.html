@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="KODIGO privacy policy explaining local storage, AI processing, and optional Google Drive sync."
+    />
+    <title>Privacy Policy — KODIGO</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #020617; color: #e2e8f0; }
+      body { margin: 0; padding: 2rem 1rem; }
+      main { max-width: 46rem; margin: auto; }
+      a { color: #a5b4fc; }
+      h1, h2 { color: #f8fafc; }
+      h1 { margin-bottom: .25rem; }
+      h2 { margin-top: 2rem; font-size: 1.15rem; }
+      p, li { color: #cbd5e1; line-height: 1.7; }
+      .updated { color: #94a3b8; font-size: .9rem; }
+      .notice { border: 1px solid #312e81; background: #111438; border-radius: .75rem; padding: 1rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><a href="/">← KODIGO</a></p>
+      <h1>KODIGO Privacy Policy</h1>
+      <p class="updated">Last updated: November 6, 2026</p>
+      <p class="notice">KODIGO stores your saved app data in your browser by default. Some information is sent to services when you use AI, text extraction, or optional Google Drive sync.</p>
+
+      <h2>Information stored on your device</h2>
+      <p>Chats, messages, saved references, academic records, and settings are primarily stored in browser storage (IndexedDB and local storage) on your device. KODIGO does not require an account for local use. Clearing browser data, changing browsers, or changing devices can remove or make this data unavailable. You are responsible for keeping your own backup.</p>
+
+      <h2>Information processed to provide features</h2>
+      <p>When you request an AI response, KODIGO sends your prompt and the relevant conversation, references, or academic context selected for that request through the KODIGO backend to the AI provider configured in the app, such as Google Gemini or OpenAI. If you use Ollama, requests are sent to the Ollama endpoint you configured. Images attached for AI analysis may be sent to that provider.</p>
+      <p>Files submitted for text extraction are temporarily processed by the KODIGO backend and removed from its temporary upload location after processing. If you select online OCR, the image may also be sent to OCR.space. Local OCR options process files on your device or backend host without sending them to OCR.space.</p>
+      <p>These providers and hosting services may process request data under their own privacy policies, terms, and retention practices. Avoid submitting sensitive information unless you are comfortable with the selected services processing it.</p>
+
+      <h2>Optional Google Drive sync</h2>
+      <p>If you choose Google sign-in and Drive sync, KODIGO accesses your Google profile information and the Drive files needed to sync. It can upload or download your selected KODIGO backup in your Google Drive. Sync is optional and can be stopped by signing out. Google’s privacy policy and terms apply to Google services.</p>
+
+      <h2>Analytics and advertising</h2>
+      <p>KODIGO is not designed to run advertising or analytics trackers. The hosting platform and third-party services may process technical information needed to operate, secure, or deliver their services under their own policies.</p>
+
+      <h2>Your choices</h2>
+      <ul>
+        <li>Use local features without signing in to Google Drive.</li>
+        <li>Choose an AI provider and OCR option in Settings.</li>
+        <li>Clear KODIGO’s browser storage to remove locally saved data, understanding this cannot remove information already processed by third parties.</li>
+        <li>Review Google Drive backups and remove them from Drive when no longer needed.</li>
+      </ul>
+
+      <h2>Changes and contact</h2>
+      <p>This policy may be updated when KODIGO’s features or data flows change. The latest version will be published at this address. For questions, contact the app developer through the <a href="https://github.com/KurtJustinMalubay/KODIGO">KODIGO project page</a>.</p>
+      <p><a href="/terms.html">Read the Terms of Service</a></p>
+    </main>
+  </body>
+</html>

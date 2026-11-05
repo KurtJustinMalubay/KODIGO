@@ -154,8 +154,11 @@ export function cleanForSpeech(text) {
   s = s.replace(/\*\*(.+?)\*\*/g, "$1");
   s = s.replace(/\*(.+?)\*/g, "$1");
   s = s.replace(/^#{1,6}\s+/gm, "");
+  s = s.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, "");
+  s = s.replace(/^\s*>\s?/gm, "");
   s = s.replace(/`{1,3}[^`]*`{1,3}/g, "");
   s = s.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  s = s.replace(/<[^>]*>/g, "");
 
   // Normalize whitespace
   s = s.replace(/\n{2,}/g, ". ");
@@ -165,9 +168,65 @@ export function cleanForSpeech(text) {
   return s.trim();
 }
 
+export function selectPreferredSpeechVoice(voices) {
+  const englishVoices = voices.filter((voice) =>
+    /^en(?:-|$)/i.test(voice.lang || ""),
+  );
+  const candidates = englishVoices.length ? englishVoices : voices;
+  const score = (voice) => {
+    const name = voice.name || "";
+    let value = /^en-US$/i.test(voice.lang || "") ? 10 : 0;
+    if (/natural|neural|online|enhanced/i.test(name)) value += 30;
+    if (/aria|jenny|samantha|google us english/i.test(name)) value += 12;
+    if (/microsoft|google/i.test(name)) value += 5;
+    if (voice.default) value += 2;
+    return value;
+  };
+  return candidates.reduce(
+    (best, voice) => (!best || score(voice) > score(best) ? voice : best),
+    null,
+  );
+}
+
+export function splitSpeechText(text, maxLength = 240) {
+  const sentences = text.match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g) || [text];
+  const chunks = [];
+  let chunk = "";
+
+  for (const sentence of sentences) {
+    const part = sentence.trim();
+    if (!part) continue;
+
+    if (chunk && `${chunk} ${part}`.length <= maxLength) {
+      chunk += ` ${part}`;
+    } else {
+      if (chunk) chunks.push(chunk);
+      if (part.length <= maxLength) {
+        chunk = part;
+        continue;
+      }
+
+      const words = part.split(/\s+/);
+      chunk = "";
+      for (const word of words) {
+        if (chunk && `${chunk} ${word}`.length > maxLength) {
+          chunks.push(chunk);
+          chunk = word;
+        } else {
+          chunk = chunk ? `${chunk} ${word}` : word;
+        }
+      }
+    }
+  }
+
+  if (chunk) chunks.push(chunk);
+  return chunks;
+}
+
 // ── Global reference to prevent Chrome garbage-collection bug during speech ──
 let globalSpeechUtterance = null;
 let globalSpeakingId = null;
+let globalSpeechGeneration = 0;
 const globalListeners = new Set();
 
 function notifySpeechState(speakingId) {
@@ -177,6 +236,7 @@ function notifySpeechState(speakingId) {
 
 export function cancelDeviceSpeech() {
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    globalSpeechGeneration += 1;
     window.speechSynthesis.cancel();
     globalSpeechUtterance = null;
     notifySpeechState(null);
@@ -198,24 +258,42 @@ export function speakDeviceSpeech(id, text, onEnd) {
   const cleaned = cleanForSpeech(text);
   if (!cleaned) return;
 
-  const utterance = new SpeechSynthesisUtterance(cleaned);
-  utterance.rate = 1.0;
-  utterance.pitch = 1.0;
-  utterance.lang = "en-US";
-
-  // Retain global reference so browser garbage collector does not silence speech
-  globalSpeechUtterance = utterance;
+  const generation = ++globalSpeechGeneration;
+  const chunks = splitSpeechText(cleaned);
+  const voice = selectPreferredSpeechVoice(window.speechSynthesis.getVoices());
+  let chunkIndex = 0;
   notifySpeechState(id);
 
-  utterance.onend = () => {
-    globalSpeechUtterance = null;
-    notifySpeechState(null);
-    onEnd?.();
-  };
+  const speakNextChunk = () => {
+    if (generation !== globalSpeechGeneration) return;
+    if (chunkIndex >= chunks.length) {
+      globalSpeechUtterance = null;
+      notifySpeechState(null);
+      onEnd?.();
+      return;
+    }
 
-  utterance.onerror = () => {
-    globalSpeechUtterance = null;
-    notifySpeechState(null);
+    const utterance = new SpeechSynthesisUtterance(chunks[chunkIndex]);
+    utterance.lang = voice?.lang || "en-US";
+    if (voice) utterance.voice = voice;
+    utterance.rate = 0.94;
+    utterance.pitch = 1;
+    globalSpeechUtterance = utterance;
+
+    utterance.onend = () => {
+      if (generation !== globalSpeechGeneration) return;
+      chunkIndex += 1;
+      speakNextChunk();
+    };
+
+    utterance.onerror = () => {
+      if (generation !== globalSpeechGeneration) return;
+      globalSpeechGeneration += 1;
+      globalSpeechUtterance = null;
+      notifySpeechState(null);
+    };
+
+    window.speechSynthesis.speak(utterance);
   };
 
   // Resume synthesis if paused by browser
@@ -225,7 +303,7 @@ export function speakDeviceSpeech(id, text, onEnd) {
     }
   } catch {}
 
-  window.speechSynthesis.speak(utterance);
+  speakNextChunk();
 }
 
 // ── Text-to-Speech (TTS) Hook for components ──────────────────────────────────
