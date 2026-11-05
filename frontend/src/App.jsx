@@ -6,6 +6,7 @@ import Header from "./components/Header";
 import InputBar from "./components/InputBar";
 import RefsModal from "./components/RefsModal";
 import SettingsModal from "./components/SettingsModal";
+import PrivacyTermsModal from "./components/PrivacyTermsModal";
 import SetupWizard from "./components/SetupWizard";
 import Sidebar from "./components/Sidebar";
 import TutorWorkspace from "./components/TutorWorkspace";
@@ -13,7 +14,17 @@ import { compressImage, extractTextOnDevice } from "./utils/imageOptimizer";
 import { useGoogleDriveSync } from "./hooks/useGoogleDriveSync";
 import { FolderPickerModal, SyncConflictModal } from "./components/SyncModals";
 
+const PRIVACY_ACCEPTANCE_KEY = "kodigo_privacy_terms_accepted_v1";
+
 export default function App() {
+  const [privacyAccepted, setPrivacyAccepted] = useState(() => {
+    try {
+      return localStorage.getItem(PRIVACY_ACCEPTANCE_KEY) === "accepted";
+    } catch {
+      return false;
+    }
+  });
+  const [privacyError, setPrivacyError] = useState("");
   const [viewMode, setViewMode] = useState(() => {
     try {
       const saved = localStorage.getItem("kodigo_view_mode");
@@ -43,7 +54,6 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState("");
   const [error, setError] = useState("");
 
   // In-memory cache for loaded chat messages to provide instant 0ms switching
@@ -414,17 +424,12 @@ export default function App() {
         const currentProvider = settings?.provider || "gemini";
         if (currentProvider === "ollama") {
           try {
-            setLoadingStatus("Scanning text locally…");
-            clientOcrText = await extractTextOnDevice(processedFile, (status) =>
-              setLoadingStatus(status)
-            );
+            clientOcrText = await extractTextOnDevice(processedFile);
           } catch (ocrError) {
             console.warn("Client OCR fallback:", ocrError);
           }
         }
       }
-
-      setLoadingStatus("Thinking…");
 
       const onChunk = (streamedText) => {
         setMessages((prev) =>
@@ -464,7 +469,6 @@ export default function App() {
         );
       } finally {
         setLoading(false);
-        setLoadingStatus("");
         if (localImagePreview) {
           URL.revokeObjectURL(localImagePreview);
         }
@@ -508,6 +512,16 @@ export default function App() {
 
   const toggleSidebar = useCallback(() => {
     setSidebar((prev) => !prev);
+  }, []);
+
+  const acceptPrivacyTerms = useCallback(() => {
+    try {
+      localStorage.setItem(PRIVACY_ACCEPTANCE_KEY, "accepted");
+      setPrivacyAccepted(true);
+      setPrivacyError("");
+    } catch {
+      setPrivacyError("Could not save your choice. Please enable browser storage and try again.");
+    }
   }, []);
 
   const refreshAfterSync = useCallback(async () => {
@@ -591,7 +605,6 @@ export default function App() {
               messages={messages}
               loading={loading}
               loadingChat={loadingChat}
-              loadingStatus={loadingStatus}
               error={error}
               showTimestamps={Boolean(settings?.show_timestamps)}
             />
@@ -635,7 +648,13 @@ export default function App() {
           onClose={() => setModal(null)}
         />
       )}
-      {!settings.setup_complete && (
+      {!privacyAccepted && (
+        <PrivacyTermsModal
+          onAccept={acceptPrivacyTerms}
+          error={privacyError}
+        />
+      )}
+      {privacyAccepted && !settings.setup_complete && (
         <SetupWizard savedSettings={settings} onComplete={completeSetup} />
       )}
 

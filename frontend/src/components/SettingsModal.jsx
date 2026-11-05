@@ -1,12 +1,14 @@
 import React, { useState } from "react";
-import { Sliders, MessageSquare } from "lucide-react";
+import { Sliders, MessageSquare, ShieldCheck } from "lucide-react";
 import Modal from "./Modal";
 import SetupSettingsFields from "./SetupSettingsFields";
 import GeneralSettingsFields from "./GeneralSettingsFields";
+import PrivacyTermsContent from "./PrivacyTermsContent";
 
 const CATEGORIES = [
   { id: "setup", label: "Setup & AI", icon: Sliders },
   { id: "general", label: "Conversation & Context", icon: MessageSquare },
+  { id: "privacy", label: "Privacy & Terms", icon: ShieldCheck },
 ];
 
 export default function SettingsModal({ settings, onSave, onClose }) {
@@ -22,7 +24,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
   return (
     <Modal title="Settings" onClose={onClose}>
       {/* Category Tabs */}
-      <div className="flex p-1 bg-slate-950/70 border border-slate-800 rounded-xl mb-4 gap-1">
+      <div className="flex flex-wrap p-1 bg-slate-950/70 border border-slate-800 rounded-xl mb-4 gap-1">
         {CATEGORIES.map((cat) => {
           const Icon = cat.icon;
           const isActive = activeTab === cat.id;
@@ -31,7 +33,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
               key={cat.id}
               type="button"
               onClick={() => setActiveTab(cat.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-medium transition-all ${
+              className={`min-w-[30%] flex-1 flex items-center justify-center gap-2 py-2.5 px-2 rounded-lg text-xs font-medium transition-all ${
                 isActive
                   ? "bg-slate-800 text-indigo-400 shadow-sm border border-slate-700/60"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
@@ -59,6 +61,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             setSettings={setValue}
           />
         )}
+        {activeTab === "privacy" && <PrivacyTermsContent />}
       </div>
 
       <div className="mt-5 pt-3 border-t border-slate-800 flex gap-2.5">

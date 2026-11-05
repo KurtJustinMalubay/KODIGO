@@ -272,7 +272,6 @@ export default function TutorWorkspace({
 
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [loadingStatus, setLoadingStatus] = useState("");
   const [tutorMode, setTutorMode] = useState("quiz");
   const [quizLength, setQuizLength] = useState(5);
   const [subjectFilter, setSubjectFilter] = useState("all");
@@ -336,9 +335,6 @@ export default function TutorWorkspace({
 
     setLoading(true);
     setError("");
-    setLoadingStatus(
-      selectedMode === "quiz" ? "Generating your quiz…" : "Consulting academic profile…"
-    );
     const apiMode = selectedMode === "quiz" ? "tutor_quiz" : "tutor";
 
     // Optimistic user and AI messages for instantaneous feedback
@@ -378,10 +374,7 @@ export default function TutorWorkspace({
       const localSettings = api.getSettingsSync();
       if (localSettings?.provider === "ollama") {
         try {
-          setLoadingStatus("Scanning text locally…");
-          clientOcrText = await extractTextOnDevice(processedFile, (s) =>
-            setLoadingStatus(s)
-          );
+          clientOcrText = await extractTextOnDevice(processedFile);
         } catch {}
       }
     }
@@ -395,9 +388,6 @@ export default function TutorWorkspace({
     };
 
     try {
-      setLoadingStatus(
-        selectedMode === "quiz" ? "Writing quiz questions…" : "Coach is thinking…"
-      );
       const result = await api.send(
         targetSessionId,
         text,
@@ -418,7 +408,6 @@ export default function TutorWorkspace({
       setMessages((prev) => prev.filter((m) => m.id !== tempId && m.id !== tempId + 1));
     } finally {
       setLoading(false);
-      setLoadingStatus("");
       if (localImg) URL.revokeObjectURL(localImg);
     }
   };
@@ -545,15 +534,6 @@ export default function TutorWorkspace({
               showTimestamps={showTimestamps}
             />
           ))}
-
-          {loading && (
-            <div className="flex items-center gap-2 text-slate-400 text-sm py-2">
-              <Loader2 size={16} className="animate-spin text-violet-400" />
-              <span className="font-medium text-slate-300">
-                {loadingStatus || "Coach is preparing guidance…"}
-              </span>
-            </div>
-          )}
 
           {error && (
             <div className="text-red-300 text-sm bg-red-950/40 border border-red-900/50 rounded-xl px-3.5 py-2.5">

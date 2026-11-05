@@ -320,7 +320,6 @@ export default function ChatFeed({
   messages,
   loading,
   loadingChat,
-  loadingStatus,
   error,
   showTimestamps = false,
 }) {
@@ -328,7 +327,7 @@ export default function ChatFeed({
 
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading, loadingStatus]);
+  }, [messages, loading]);
 
   if (loadingChat) {
     return (
@@ -340,9 +339,6 @@ export default function ChatFeed({
       </div>
     );
   }
-
-  // Check if there is an active streaming message
-  const hasStreamingMessage = messages.some((m) => m.isStreaming);
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3 sm:py-4">
@@ -383,14 +379,6 @@ export default function ChatFeed({
               showTimestamps={showTimestamps}
             />
           )
-        )}
-        {loading && !hasStreamingMessage && (
-          <div className="flex items-center gap-2 text-slate-400 text-sm py-1">
-            <Loader2 size={16} className="animate-spin text-indigo-400" />
-            <span className="font-medium text-slate-300">
-              {loadingStatus || "Thinking…"}
-            </span>
-          </div>
         )}
         {error && (
           <div className="text-red-400 text-sm bg-red-950/40 border border-red-900/50 rounded-xl px-3.5 py-2.5">
