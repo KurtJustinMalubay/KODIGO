@@ -301,20 +301,22 @@ export default function TutorWorkspace({
 
   // Identify weak points across academic records for context & display
   const weakSpots = [];
-  records.forEach((r) => {
-    (r.assessments || []).forEach((a) => {
-      const s = Number(a.score) || 0;
-      const t = Number(a.total) || 0;
-      if (t > 0 && s / t < 0.75) {
-        weakSpots.push({
-          subject: r.subject,
-          assessment: a.title,
-          score: `${s}/${t}`,
-          pct: Math.round((s / t) * 100),
-        });
-      }
+  if (subjectFilter !== "none") {
+    records.forEach((r) => {
+      (r.assessments || []).forEach((a) => {
+        const s = Number(a.score) || 0;
+        const t = Number(a.total) || 0;
+        if (t > 0 && s / t < 0.75) {
+          weakSpots.push({
+            subject: r.subject,
+            assessment: a.title,
+            score: `${s}/${t}`,
+            pct: Math.round((s / t) * 100),
+          });
+        }
+      });
     });
-  });
+  }
 
   const handleSend = async (
     contentToSend = "",
@@ -463,15 +465,15 @@ export default function TutorWorkspace({
         <BookOpen size={13} className="text-violet-400 shrink-0" />
         <span className="text-[11px] text-slate-400 font-medium shrink-0">Context:</span>
         <select
-          value={records.length ? subjectFilter : "all"}
+          value={subjectFilter}
           onChange={(e) => setSubjectFilter(e.target.value)}
-          disabled={records.length === 0}
           className="w-full min-w-0 max-w-xs flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500 enabled:cursor-pointer disabled:opacity-70"
         >
           <option value="all">{records.length ? "All Subjects" : "No subjects in profile"}</option>
           {records.map((r) => (
             <option key={r.id} value={r.id}>{r.subject}</option>
           ))}
+          <option value="none">No context</option>
         </select>
       </div>
 

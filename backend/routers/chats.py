@@ -326,6 +326,7 @@ async def _prepare_chat_context(
     client_ocr_text: str,
     history_json: str,
     context_text: str,
+    include_context: bool,
     context_limit: int,
     quiz_length: int,
     db: Session,
@@ -394,7 +395,9 @@ async def _prepare_chat_context(
     else:
         system = CHAT_SYS
 
-    reference_corpus = context_text.strip() if context_text else (build_context(db, chat.id) if chat.id else "")
+    reference_corpus = ""
+    if include_context:
+        reference_corpus = context_text.strip() if context_text else (build_context(db, chat.id) if chat.id else "")
     if reference_corpus:
         context_limit = context_limit if context_limit in (12000, 24000, 48000) else 12000
         system += "\n\nReference material:\n" + reference_corpus[:context_limit]
@@ -444,6 +447,7 @@ async def stream_chat_message(
     client_ocr_text: str = Form(""),
     history_json: str = Form(""),
     context_text: str = Form(""),
+    include_context: bool = Form(True),
     context_limit: int = Form(12000),
     quiz_length: int = Form(5),
     db: Session = Depends(get_db),
@@ -460,6 +464,7 @@ async def stream_chat_message(
         client_ocr_text=client_ocr_text,
         history_json=history_json,
         context_text=context_text,
+        include_context=include_context,
         context_limit=context_limit,
         quiz_length=quiz_length if quiz_length in (5, 10, 15) else 5,
         db=db,
@@ -574,6 +579,7 @@ async def send_message(
     client_ocr_text: str = Form(""),
     history_json: str = Form(""),
     context_text: str = Form(""),
+    include_context: bool = Form(True),
     context_limit: int = Form(12000),
     quiz_length: int = Form(5),
     db: Session = Depends(get_db),
@@ -586,6 +592,7 @@ async def send_message(
         client_ocr_text=client_ocr_text,
         history_json=history_json,
         context_text=context_text,
+        include_context=include_context,
         context_limit=context_limit,
         quiz_length=quiz_length if quiz_length in (5, 10, 15) else 5,
         db=db,

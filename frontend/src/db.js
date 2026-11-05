@@ -423,7 +423,7 @@ export const localDB = {
     if (filterSubject && filterSubject !== "all") {
       const filtered = records.filter(
         (r) =>
-          r.id === filterSubject ||
+          String(r.id) === String(filterSubject) ||
           (r.subject || "").toLowerCase() === filterSubject.toLowerCase()
       );
       if (filtered.length > 0) {

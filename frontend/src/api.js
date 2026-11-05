@@ -174,6 +174,7 @@ export const api = {
   send: async (id, content, mode, file, clientOcrText = "", subjectFilter = null, onChunk = null, quizLength = 5) => {
     // 1. Gather history only when the selected mode needs it, alongside context reads.
     const localSettings = getLocalSettings();
+    const includeTutorContext = subjectFilter !== "none";
     const historyLimit = [5, 10, 20].includes(Number(localSettings?.history_limit))
       ? Number(localSettings.history_limit)
       : 10;
@@ -184,8 +185,8 @@ export const api = {
       mode === "tutor_quiz"
         ? Promise.resolve([])
         : localDB.getRecentMessages(id, historyLimit),
-      localDB.buildContextText(id),
-      mode === "tutor" || mode === "tutor_quiz"
+      includeTutorContext ? localDB.buildContextText(id) : Promise.resolve(""),
+      includeTutorContext && (mode === "tutor" || mode === "tutor_quiz")
         ? localDB.buildAcademicContext(subjectFilter)
         : Promise.resolve(""),
     ]);
@@ -204,6 +205,7 @@ export const api = {
     const f = new FormData();
     f.append("content", content);
     f.append("mode", mode);
+    f.append("include_context", String(includeTutorContext));
     if (file) f.append("image", file);
     if (clientOcrText) f.append("client_ocr_text", clientOcrText);
     f.append("history_json", JSON.stringify(mode === "tutor_quiz" ? [] : history));
