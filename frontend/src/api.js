@@ -2,9 +2,11 @@ import { localDB } from "./db";
 import { extractTextOnDevice } from "./utils/imageOptimizer";
 
 export const API_BASE = (
-  import.meta.env.VITE_API_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://kodigo-backend.onrender.com"
+  import.meta.env.DEV
+    ? import.meta.env.VITE_LOCAL_API_URL || "http://localhost:8000"
+    : import.meta.env.VITE_API_URL ||
+      import.meta.env.VITE_API_BASE_URL ||
+      "https://kodigo-backend.onrender.com"
 ).replace(/\/$/, "");
 
 // Render warm-up ping: silently pings the backend so it's awake before user finishes typing
@@ -164,24 +166,25 @@ export const api = {
   },
 
   // === AI INFERENCE (Stateless Render Compute + Local Persistence + Live Streaming) ===
-  send: async (id, content, mode, file, clientOcrText = "", subjectFilter = null, onChunk = null) => {
-    // 1. Gather recent conversation history from local database
-    const localMsgs = await localDB.getMessages(id);
-    const history = localMsgs.slice(-10).map((m) => ({
+  send: async (id, content, mode, file, clientOcrText = "", subjectFilter = null, onChunk = null, quizLength = 5) => {
+    // 1. Gather history only when the selected mode needs it, alongside context reads.
+    const [localMsgs, referenceContext, academicContext] = await Promise.all([
+      mode === "tutor_quiz" ? Promise.resolve([]) : localDB.getRecentMessages(id, 10),
+      localDB.buildContextText(id),
+      mode === "tutor" || mode === "tutor_quiz"
+        ? localDB.buildAcademicContext(subjectFilter)
+        : Promise.resolve(""),
+    ]);
+    const history = localMsgs.map((m) => ({
       role: m.sender === "user" ? "user" : "assistant",
       content: m.content,
     }));
 
-    // 2. Gather active references and academic profile context from local database
-    let contextText = await localDB.buildContextText(id);
-    if (mode === "tutor" || mode === "tutor_quiz") {
-      const academicCtx = await localDB.buildAcademicContext(subjectFilter);
-      if (academicCtx) {
-        contextText = contextText
-          ? `${academicCtx}\n\n${contextText}`
-          : academicCtx;
-      }
-    }
+    // 2. Prioritize academic context and cap the total prompt context.
+    const contextText = [academicContext, referenceContext]
+      .filter(Boolean)
+      .join("\n\n")
+      .slice(0, 12000);
 
     // 3. Prepare payload for Render AI compute
     const f = new FormData();
@@ -189,8 +192,11 @@ export const api = {
     f.append("mode", mode);
     if (file) f.append("image", file);
     if (clientOcrText) f.append("client_ocr_text", clientOcrText);
-    f.append("history_json", JSON.stringify(history));
+    f.append("history_json", JSON.stringify(mode === "tutor_quiz" ? [] : history));
     f.append("context_text", contextText);
+    if (mode === "tutor_quiz") {
+      f.append("quiz_length", String(quizLength));
+    }
 
     // Build headers from local settings
     const local = getLocalSettings();
@@ -206,9 +212,10 @@ export const api = {
     }
 
     let result = null;
+    let streamAccepted = false;
 
     // 4. Try ultra-fast streaming if onChunk handler is provided
-    if (typeof onChunk === "function") {
+    if (typeof onChunk === "function" && mode !== "tutor_quiz") {
       try {
         const streamUrl = `${API_BASE}/api/chats/${id}/stream`;
         const res = await fetch(streamUrl, {
@@ -218,6 +225,7 @@ export const api = {
         });
 
         if (res.ok && res.body) {
+          streamAccepted = true;
           const reader = res.body.getReader();
           const decoder = new TextDecoder("utf-8");
           let buffer = "";
@@ -279,11 +287,11 @@ export const api = {
               },
             };
           } else {
-            console.warn("Live stream returned empty reply, falling back to standard POST");
-            result = null;
+            throw new Error("Live stream returned an empty reply. Please try again.");
           }
         }
       } catch (streamErr) {
+        if (streamAccepted) throw streamErr;
         console.warn("Live stream fallback to standard call:", streamErr);
       }
     }

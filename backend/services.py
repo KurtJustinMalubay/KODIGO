@@ -153,7 +153,7 @@ class AIProvider(ABC):
         self.s = s
 
     @abstractmethod
-    async def chat(self, system: str, msgs: list, image_bytes: bytes | None = None, image_mime: str | None = None) -> str:
+    async def chat(self, system: str, msgs: list, image_bytes: bytes | None = None, image_mime: str | None = None, json_mode: bool = False) -> str:
         ...
 
     @abstractmethod
@@ -174,17 +174,20 @@ class Ollama(AIProvider):
             formatted.append(msg_obj)
         return formatted
 
-    async def chat(self, system, msgs, image_bytes=None, image_mime=None):
+    async def chat(self, system, msgs, image_bytes=None, image_mime=None, json_mode=False):
         endpoint = (self.s.ollama_url or "http://localhost:11434").rstrip("/")
         client = get_http_client()
+        payload = {
+            "model": self.s.model_name,
+            "stream": False,
+            "messages": self._build_messages(system, msgs, image_bytes),
+        }
+        if json_mode:
+            payload["format"] = "json"
         try:
             r = await client.post(
                 f"{endpoint}/api/chat",
-                json={
-                    "model": self.s.model_name,
-                    "stream": False,
-                    "messages": self._build_messages(system, msgs, image_bytes),
-                },
+                json=payload,
             )
             r.raise_for_status()
             return r.json()["message"]["content"]
@@ -249,17 +252,20 @@ class OpenAI(AIProvider):
                 messages.append({"role": role, "content": content})
         return messages
 
-    async def chat(self, system, msgs, image_bytes=None, image_mime=None):
+    async def chat(self, system, msgs, image_bytes=None, image_mime=None, json_mode=False):
         client = get_http_client()
+        payload = {
+            "model": self.s.model_name,
+            "temperature": 0.4,
+            "messages": self._build_messages(system, msgs, image_bytes, image_mime),
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
         try:
             r = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {self.s.cloud_api_key}"},
-                json={
-                    "model": self.s.model_name,
-                    "temperature": 0.4,
-                    "messages": self._build_messages(system, msgs, image_bytes, image_mime),
-                },
+                json=payload,
             )
             r.raise_for_status()
             return r.json()["choices"][0]["message"]["content"]
@@ -344,18 +350,21 @@ class Gemini(AIProvider):
 
         return merged if merged else [{"role": "user", "parts": [{"text": "Hello"}]}]
 
-    async def chat(self, system, msgs, image_bytes=None, image_mime=None):
+    async def chat(self, system, msgs, image_bytes=None, image_mime=None, json_mode=False):
         if not self.s.cloud_api_key:
             raise RuntimeError(
                 "No Gemini API key configured. Either select 'Free Tier' in Settings or enter your own Google AI Studio API key."
             )
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.s.model_name}:generateContent?key={self.s.cloud_api_key}"
+        generation_config = {
+            "temperature": 0.4,
+        }
+        if json_mode:
+            generation_config["responseMimeType"] = "application/json"
         body = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": self._build_contents(msgs, image_bytes, image_mime),
-            "generationConfig": {
-                "temperature": 0.4,
-            },
+            "generationConfig": generation_config,
         }
         client = get_http_client()
         try:
@@ -430,9 +439,15 @@ class Gemini(AIProvider):
 PROVIDERS = {"ollama": Ollama, "openai": OpenAI, "gemini": Gemini}
 
 
-async def generate(settings, system, msgs, image_bytes: bytes | None = None, image_mime: str | None = None):
+async def generate(settings, system, msgs, image_bytes: bytes | None = None, image_mime: str | None = None, json_mode: bool = False):
     provider_cls = PROVIDERS.get(settings.provider, Gemini)
-    return await provider_cls(settings).chat(system, msgs, image_bytes, image_mime)
+    return await provider_cls(settings).chat(
+        system,
+        msgs,
+        image_bytes,
+        image_mime,
+        json_mode=json_mode,
+    )
 
 
 async def stream_generate(settings, system, msgs, image_bytes: bytes | None = None, image_mime: str | None = None):

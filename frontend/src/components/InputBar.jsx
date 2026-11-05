@@ -19,6 +19,8 @@ export default function InputBar({
   onSend,
   loading,
   variant = "chat",
+  quizLength = 5,
+  setQuizLength,
 }) {
   const [text, setText] = useState("");
   const [file, setFile] = useState(null);
@@ -39,7 +41,7 @@ export default function InputBar({
 
   const submit = () => {
     if (loading || (!text.trim() && !file)) return;
-    onSend(text.trim(), file, mode);
+    onSend(text.trim(), file, mode, quizLength);
     setText("");
     setFile(null);
     if (textarea.current) {
@@ -49,6 +51,8 @@ export default function InputBar({
 
   const isImage = file && file.type.startsWith("image/");
   const isTutor = variant === "tutor";
+  const isQuizMode = mode === "quiz";
+  const modeOptions = ["chat", "quiz"];
 
   return (
     <div className="border-t border-slate-800 bg-slate-950/95 backdrop-blur-md px-3 sm:px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] shrink-0 select-none">
@@ -59,7 +63,13 @@ export default function InputBar({
             {isImage ? (
               <ImageIcon
                 size={14}
-                className={`${isTutor ? "text-violet-400" : "text-blue-400"} shrink-0`}
+                className={`${
+                  isTutor
+                    ? isQuizMode
+                      ? "text-indigo-400"
+                      : "text-violet-400"
+                    : "text-blue-400"
+                } shrink-0`}
               />
             ) : (
               <FileText size={14} className="text-slate-400 shrink-0" />
@@ -94,7 +104,11 @@ export default function InputBar({
 
         {/* Input box */}
         <div className={`flex items-end gap-1.5 sm:gap-2 bg-slate-900/90 rounded-2xl px-2.5 sm:px-3 py-1.5 border border-slate-800 ${
-          isTutor ? "focus-within:border-violet-500/80" : "focus-within:border-blue-500/80"
+          isTutor
+            ? isQuizMode
+              ? "focus-within:border-indigo-500/80"
+              : "focus-within:border-violet-500/80"
+            : "focus-within:border-blue-500/80"
         } transition-all shadow-sm`}>
           {/* File Picker button */}
           <button
@@ -103,7 +117,11 @@ export default function InputBar({
             title={isTutor ? "Attach a question or study material" : "Attach image or PDF"}
             aria-label={isTutor ? "Attach a question or study material" : "Attach image or PDF"}
             className={`w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 ${
-              isTutor ? "hover:text-violet-300" : "hover:text-blue-300"
+              isTutor
+                ? isQuizMode
+                  ? "hover:text-indigo-300"
+                  : "hover:text-violet-300"
+                : "hover:text-blue-300"
             } hover:bg-slate-800 active:bg-slate-800 transition-colors cursor-pointer shrink-0`}
           >
             <Paperclip size={18} />
@@ -130,7 +148,7 @@ export default function InputBar({
                 ? "🎙️ Listening... Speak into your device microphone"
                 : isTutor
                 ? mode === "quiz"
-                  ? "Choose a topic…"
+                  ? "Enter a topic to build your quiz…"
                   : "Ask your tutor…"
                 : mode === "quiz"
                 ? "Drop quiz image, type question, or tap mic…"
@@ -166,7 +184,9 @@ export default function InputBar({
                 ? "bg-red-600 hover:bg-red-500 text-white animate-pulse ring-2 ring-red-400 shadow-md shadow-red-600/40"
                 : `text-slate-400 ${
                     isTutor
-                      ? "hover:text-violet-300 hover:bg-violet-950/50"
+                      ? isQuizMode
+                        ? "hover:text-indigo-300 hover:bg-indigo-950/50"
+                        : "hover:text-violet-300 hover:bg-violet-950/50"
                       : "hover:text-white hover:bg-slate-800"
                   } active:bg-slate-800`
             }`}
@@ -181,7 +201,9 @@ export default function InputBar({
             disabled={loading || (!text.trim() && !file)}
             className={`w-10 h-10 flex items-center justify-center rounded-xl ${
               isTutor
-                ? "bg-violet-600 hover:bg-violet-500 active:bg-violet-700 disabled:hover:bg-violet-600 shadow-violet-600/25"
+                ? isQuizMode
+                  ? "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:hover:bg-indigo-600 shadow-indigo-600/25"
+                  : "bg-violet-600 hover:bg-violet-500 active:bg-violet-700 disabled:hover:bg-violet-600 shadow-violet-600/25"
                 : "bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:hover:bg-blue-600 shadow-blue-600/25"
             } disabled:opacity-40 text-white shadow-md transition-all cursor-pointer shrink-0 mb-0.5`}
             title="Send message"
@@ -197,55 +219,100 @@ export default function InputBar({
         {/* Mode Switcher toolbar */}
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800/80 rounded-full p-0.5">
-            <button
-              type="button"
-              onClick={() => setMode("quiz")}
-              aria-pressed={mode === "quiz"}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                mode === "quiz"
-                  ? isTutor
-                    ? "bg-violet-600 text-white shadow-sm"
-                    : "bg-emerald-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <Zap
-                size={13}
-                className={mode === "quiz"
-                  ? isTutor ? "text-violet-200" : "text-emerald-200"
-                  : "text-slate-500"}
-              />
-              <span>{isTutor ? "Tutor-led Quiz" : "Quiz Mode"}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMode("chat")}
-              aria-pressed={mode === "chat"}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                mode === "chat"
-                  ? `${isTutor ? "bg-violet-600" : "bg-blue-600"} text-white shadow-sm`
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              <MessageSquare
-                size={13}
-                className={mode === "chat" ? isTutor ? "text-violet-200" : "text-blue-200" : "text-slate-500"}
-              />
-              <span>{isTutor ? "Coaching Chat" : "Chat Mode"}</span>
-            </button>
+            {modeOptions.map((option) => {
+              const selected = mode === option;
+              const quizOption = option === "quiz";
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setMode(option)}
+                  aria-pressed={selected}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                    selected
+                      ? quizOption
+                        ? isTutor
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-emerald-600 text-white shadow-sm"
+                        : isTutor
+                          ? "bg-violet-600 text-white shadow-sm"
+                          : "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {quizOption ? (
+                    <Zap
+                      size={13}
+                      className={
+                        selected
+                          ? isTutor
+                            ? "text-indigo-200"
+                            : "text-emerald-200"
+                          : "text-slate-500"
+                      }
+                    />
+                  ) : (
+                    <MessageSquare
+                      size={13}
+                      className={
+                        selected
+                          ? isTutor
+                            ? "text-violet-200"
+                            : "text-blue-200"
+                          : "text-slate-500"
+                      }
+                    />
+                  )}
+                  <span>
+                    {quizOption
+                      ? isTutor
+                        ? "Tutor-led Quiz"
+                        : "Quiz Mode"
+                      : isTutor
+                        ? "Coaching Chat"
+                        : "Chat"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <span className="text-[10px] text-slate-500 hidden sm:inline">
             {isTutor
               ? mode === "quiz"
-                ? "One question at a time"
+                ? `${quizLength}-question quiz · reveal answers after`
                 : "Ask your coach anything"
               : mode === "quiz"
               ? "Direct answers list"
               : "Step-by-step tutoring"}
           </span>
         </div>
+        {isTutor && mode === "quiz" && setQuizLength && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+            <span className="text-[10px] font-medium text-slate-400">Quiz length</span>
+            <div className="flex items-center gap-1">
+              {[
+                { length: 5, label: "Short" },
+                { length: 10, label: "Medium" },
+                { length: 15, label: "Long" },
+              ].map(({ length, label }) => (
+                <button
+                  key={length}
+                  type="button"
+                  onClick={() => setQuizLength(length)}
+                  aria-pressed={quizLength === length}
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+                    quizLength === length
+                      ? "border-indigo-500/60 bg-indigo-600/20 text-indigo-200"
+                      : "border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                  }`}
+                >
+                  {label} · {length}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

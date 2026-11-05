@@ -18,6 +18,7 @@ python -m uvicorn main:app --reload --port 8000
 ```
 
 The API will be available at http://localhost:8000 (interactive API docs: http://localhost:8000/docs).
+The local Vite frontend uses this local API by default, ignoring the production API values in `.env`; set `VITE_LOCAL_API_URL` to override it. Production builds use `VITE_API_URL`, then `VITE_API_BASE_URL`, and otherwise the Render API.
 
 ### Terminal 2: Frontend
 ```powershell

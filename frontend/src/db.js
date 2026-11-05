@@ -207,6 +207,49 @@ export const localDB = {
     });
   },
 
+  async getRecentMessages(chatId, limit = 10) {
+    const max = Math.max(0, Math.floor(Number(limit) || 0));
+    if (max === 0) return [];
+
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("messages", "readonly");
+      const index = tx.objectStore("messages").index("chat_id");
+      const altId =
+        typeof chatId === "string" && !isNaN(chatId)
+          ? Number(chatId)
+          : String(chatId);
+
+      const readRecent = (key, isFallback = false) => {
+        const list = [];
+        const req = index.openCursor(IDBKeyRange.only(key), "prev");
+
+        req.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            list.push(cursor.value);
+            if (list.length === max) {
+              resolve(list.reverse());
+              return;
+            }
+            cursor.continue();
+            return;
+          }
+
+          if (list.length === 0 && !isFallback && altId !== chatId) {
+            readRecent(altId, true);
+            return;
+          }
+          resolve(list.reverse());
+        };
+
+        req.onerror = () => reject(req.error);
+      };
+
+      readRecent(chatId);
+    });
+  },
+
   async addMessage(msg) {
     const db = await openDB();
     const uniqueId =

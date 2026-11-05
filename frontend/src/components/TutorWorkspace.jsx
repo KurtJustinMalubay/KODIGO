@@ -14,13 +14,157 @@ import Md from "./Md";
 import InputBar from "./InputBar";
 import { useTextToSpeech } from "../hooks/useSpeech";
 
+function parseTutorQuiz(content) {
+  const cleaned = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+
+  try {
+    const quiz = JSON.parse(cleaned.slice(start, end + 1));
+    if (!Array.isArray(quiz.questions) || !quiz.questions.length) return null;
+    const questions = quiz.questions.filter(
+      (item) =>
+        typeof item?.question === "string" &&
+        Array.isArray(item.options) &&
+        item.options.length >= 2 &&
+        item.options.every(
+          (option) => typeof option?.id === "string" && typeof option.text === "string"
+        ) &&
+        typeof item.answer === "string" &&
+        item.options.some(
+          (option) => option.id.toUpperCase() === item.answer.toUpperCase()
+        ) &&
+        typeof item.explanation === "string"
+    );
+    if (questions.length !== quiz.questions.length) return null;
+    return { title: typeof quiz.title === "string" ? quiz.title : "Practice Quiz", questions };
+  } catch {
+    return null;
+  }
+}
+
+function TutorQuizCard({ content }) {
+  const quiz = parseTutorQuiz(content);
+  const [answers, setAnswers] = useState({});
+  const [revealed, setRevealed] = useState({});
+
+  if (!quiz) {
+    return (
+      <div className="rounded-xl border border-amber-800/60 bg-amber-950/30 p-3 text-xs text-amber-100">
+        This saved response is not a complete quiz, so it cannot be displayed. Send a new quiz prompt to generate a fresh one.
+      </div>
+    );
+  }
+
+  const correctCount = quiz.questions.reduce(
+    (total, question, index) =>
+      total +
+      (revealed[index] &&
+      answers[index] === question.answer.toUpperCase()
+        ? 1
+        : 0),
+    0
+  );
+  const revealedCount = Object.values(revealed).filter(Boolean).length;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-bold text-white">{quiz.title}</h3>
+        <p className="mt-1 text-[11px] text-slate-400">
+          {quiz.questions.length} questions
+          {revealedCount > 0 && ` · ${correctCount}/${revealedCount} correct`}
+        </p>
+      </div>
+      {quiz.questions.map((question, index) => {
+        const isRevealed = Boolean(revealed[index]);
+        const correctAnswer = question.answer.toUpperCase();
+        const isCorrect = answers[index] === correctAnswer;
+        return (
+          <section
+            key={`${index}-${question.question}`}
+            className="rounded-xl border border-slate-800 bg-slate-950/70 p-3.5"
+          >
+            <div className="mb-3 text-sm font-semibold text-slate-100">
+              <span className="mr-1.5 text-indigo-300">{index + 1}.</span>
+              <Md>{question.question}</Md>
+            </div>
+            <div className="space-y-2">
+              {question.options.map((option) => {
+                const optionId = String(option.id || "").toUpperCase();
+                const selected = answers[index] === optionId;
+                const correct = optionId === correctAnswer;
+                const optionClass = isRevealed && correct
+                  ? "border-emerald-500/60 bg-emerald-950/40 text-emerald-100"
+                  : isRevealed && selected && !correct
+                    ? "border-red-500/60 bg-red-950/30 text-red-100"
+                    : selected
+                      ? "border-indigo-500/70 bg-indigo-950/50 text-white"
+                      : "border-slate-800 bg-slate-900/70 text-slate-300 hover:border-indigo-500/50";
+                return (
+                  <button
+                    key={optionId}
+                    type="button"
+                    disabled={isRevealed}
+                    aria-pressed={selected}
+                    onClick={() =>
+                      setAnswers((previous) => ({ ...previous, [index]: optionId }))
+                    }
+                    className={`flex w-full items-start gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors disabled:cursor-default ${optionClass}`}
+                  >
+                    <span className="font-bold">{optionId}.</span>
+                    <span className="whitespace-pre-wrap">{option.text}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {!isRevealed ? (
+              <button
+                type="button"
+                onClick={() => setRevealed((previous) => ({ ...previous, [index]: true }))}
+                className="mt-3 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-500"
+              >
+                {answers[index] ? "Check answer & explanation" : "Reveal answer & explanation"}
+              </button>
+            ) : (
+              <div
+                className={`mt-3 rounded-lg border p-3 text-xs ${
+                  isCorrect
+                    ? "border-emerald-800/70 bg-emerald-950/30 text-emerald-100"
+                    : "border-amber-800/70 bg-amber-950/30 text-amber-100"
+                }`}
+              >
+                <p className="font-semibold">
+                  {answers[index]
+                    ? isCorrect
+                      ? "Correct!"
+                      : "Not quite."
+                    : "Answer revealed"}
+                  {" "}Correct answer: {question.answer}.
+                </p>
+                <div className="mt-1.5 text-slate-200"><Md>{question.explanation}</Md></div>
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 const TutorMessageItem = React.memo(function TutorMessageItem({
   message,
   showTimestamps,
 }) {
   const isUser = message.sender === "user";
+  const isCoaching = !isUser && message.mode === "tutor";
   const { isSpeaking, toggle: toggleTTS } = useTextToSpeech(message.id);
   const isStreaming = Boolean(message.isStreaming);
+  const isQuiz = !isUser && message.mode === "tutor_quiz";
   const timeFormatted = message.created_at
     ? new Date(message.created_at).toLocaleTimeString([], {
         hour: "2-digit",
@@ -40,28 +184,34 @@ const TutorMessageItem = React.memo(function TutorMessageItem({
       className={
         isUser
           ? "self-end max-w-[92%] sm:max-w-[85%] bg-slate-800 text-slate-100 rounded-2xl px-3.5 sm:px-4 py-2.5 text-sm shadow-sm leading-relaxed"
-          : "border-l-4 border-violet-500 bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed"
+          : `border-l-4 ${isCoaching ? "border-violet-500" : "border-indigo-500"} bg-slate-900/95 rounded-r-2xl sm:rounded-r-xl px-3.5 sm:px-4 py-3 sm:py-3.5 max-w-[96%] sm:max-w-[90%] text-slate-100 shadow-sm leading-relaxed`
       }
     >
       {!isUser && (
         <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-800">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-300">
-            <GraduationCap size={14} className="text-violet-400" />
+          <div className={`flex items-center gap-1.5 text-xs font-semibold ${isCoaching ? "text-violet-300" : "text-indigo-300"}`}>
+            <GraduationCap size={14} className={isCoaching ? "text-violet-400" : "text-indigo-400"} />
             <span>Academic Coach</span>
           </div>
           {/* Built-in Text-to-Speech button (Always visible on Desktop & Mobile) */}
-          {!isStreaming && (
+          {!isStreaming && !isQuiz && (
             <button
               type="button"
               onClick={() => toggleTTS(message.content)}
               title={isSpeaking ? "Stop speaking" : "Read aloud using device built-in speech"}
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-0.5 rounded-lg font-medium transition-all cursor-pointer ${
                 isSpeaking
-                  ? "text-violet-200 bg-violet-900/60 border border-violet-700/60 shadow-sm animate-pulse"
+                  ? isCoaching
+                    ? "text-violet-200 bg-violet-900/60 border border-violet-700/60 shadow-sm animate-pulse"
+                    : "text-indigo-200 bg-indigo-900/60 border border-indigo-700/60 shadow-sm animate-pulse"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 active:bg-slate-800"
               }`}
             >
-              {isSpeaking ? <VolumeX size={13} className="text-violet-400" /> : <Volume2 size={13} />}
+              {isSpeaking ? (
+                <VolumeX size={13} className={isCoaching ? "text-violet-400" : "text-indigo-400"} />
+              ) : (
+                <Volume2 size={13} />
+              )}
               <span>{isSpeaking ? "Stop" : "Read"}</span>
             </button>
           )}
@@ -76,20 +226,27 @@ const TutorMessageItem = React.memo(function TutorMessageItem({
       )}
       {isUser ? (
         !isAutoPrompt && <div className="whitespace-pre-wrap">{message.content}</div>
+      ) : isStreaming && isQuiz ? (
+        <div className="flex items-center gap-2 text-indigo-300 text-xs py-1">
+          <Loader2 size={13} className="animate-spin text-indigo-400" />
+          <span>Building your quiz...</span>
+        </div>
       ) : isStreaming && !message.content ? (
-        <div className="flex items-center gap-2 text-violet-300 text-xs py-1">
-          <Loader2 size={13} className="animate-spin text-violet-400" />
+        <div className={`flex items-center gap-2 text-xs py-1 ${isCoaching ? "text-violet-300" : "text-indigo-300"}`}>
+          <Loader2 size={13} className={`animate-spin ${isCoaching ? "text-violet-400" : "text-indigo-400"}`} />
           <span>Coach is thinking...</span>
         </div>
       ) : !message.content ? (
         <div className="text-slate-400 italic text-xs py-1">
           No response generated. Please try again.
         </div>
+      ) : isQuiz ? (
+        <TutorQuizCard content={message.content} />
       ) : (
         <div className="relative">
           <Md>{message.content}</Md>
           {isStreaming && (
-            <span className="inline-block w-1.5 h-4 ml-1 bg-violet-400 animate-pulse rounded-sm align-middle" />
+            <span className={`inline-block w-1.5 h-4 ml-1 ${isQuiz ? "bg-indigo-400" : "bg-violet-400"} animate-pulse rounded-sm align-middle`} />
           )}
         </div>
       )}
@@ -106,6 +263,7 @@ export default function TutorWorkspace({
   activeId,
   activeChat,
   records = [],
+  theme,
   onRefreshChats,
   onNewTutorChat,
   showTimestamps = false,
@@ -117,6 +275,7 @@ export default function TutorWorkspace({
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState("");
   const [tutorMode, setTutorMode] = useState("quiz");
+  const [quizLength, setQuizLength] = useState(5);
   const [subjectFilter, setSubjectFilter] = useState("all");
   const [error, setError] = useState("");
   const endRef = useRef(null);
@@ -162,7 +321,8 @@ export default function TutorWorkspace({
   const handleSend = async (
     contentToSend = "",
     userFile = null,
-    selectedMode = tutorMode
+    selectedMode = tutorMode,
+    selectedQuizLength = quizLength
   ) => {
     const text = (contentToSend || "").trim();
     if (!text && !userFile) return;
@@ -177,7 +337,9 @@ export default function TutorWorkspace({
 
     setLoading(true);
     setError("");
-    setLoadingStatus("Consulting academic profile…");
+    setLoadingStatus(
+      selectedMode === "quiz" ? "Generating your quiz…" : "Consulting academic profile…"
+    );
     const apiMode = selectedMode === "quiz" ? "tutor_quiz" : "tutor";
 
     // Optimistic user and AI messages for instantaneous feedback
@@ -234,7 +396,9 @@ export default function TutorWorkspace({
     };
 
     try {
-      setLoadingStatus("Coach is thinking…");
+      setLoadingStatus(
+        selectedMode === "quiz" ? "Writing quiz questions…" : "Coach is thinking…"
+      );
       const result = await api.send(
         targetSessionId,
         text,
@@ -242,7 +406,8 @@ export default function TutorWorkspace({
         processedFile,
         clientOcrText,
         subjectFilter,
-        onChunk
+        onChunk,
+        selectedQuizLength
       );
       setMessages((prev) => {
         const filtered = prev.filter((m) => m.id !== tempId && m.id !== tempId + 1);
@@ -259,24 +424,38 @@ export default function TutorWorkspace({
     }
   };
 
-  const starterPrompts = [
+  const starterPrompts = tutorMode === "quiz"
+    ? [
+        weakSpots.length > 0
+          ? `Create a practice quiz about ${weakSpots[0].subject}, focusing on ${weakSpots[0].assessment}.`
+          : "Create a practice quiz about a subject I am studying.",
+        "Build a quiz about the fundamentals of my selected subject.",
+      ]
+    : [
     ...(weakSpots.length > 0
       ? [
-          `Start a professor-led practice quiz on ${weakSpots[0].subject} (${weakSpots[0].assessment}), where I scored ${weakSpots[0].pct}%. Ask one question and wait for my answer.`,
           `Explain the foundational concepts I might have missed in ${weakSpots[0].subject}.`,
         ]
       : [
-          "Start a professor-led practice quiz on one of my subjects. Ask one question at a time and wait for my answer.",
+          "Help me understand a topic from one of my subjects.",
         ]),
     "Give me a challenging practice problem with hints instead of the answer.",
     "Help me design an effective study schedule for my upcoming exams.",
   ];
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-slate-950/80 overflow-hidden">
+    <div
+      className={`flex-1 flex flex-col min-w-0 overflow-hidden ${
+        theme === "light"
+          ? "bg-slate-100/90 text-slate-900"
+          : theme === "warm-light"
+            ? "bg-[#f4efe4] text-stone-900"
+            : "bg-slate-950/80 text-slate-100"
+      }`}
+    >
       {/* Weakness Alert Strip */}
       {weakSpots.length > 0 && (
-        <div className="px-4 py-2 bg-amber-950/40 border-b border-amber-900/30 flex items-center justify-between gap-2 overflow-x-auto select-none">
+        <div className="px-3 sm:px-4 py-2 bg-amber-950/40 border-b border-amber-900/30 flex items-center justify-between gap-2 overflow-x-auto select-none">
           <div className="flex items-center gap-2 text-xs text-amber-300 shrink-0">
             <AlertTriangle size={14} className="text-amber-400 shrink-0" />
             <span className="font-semibold">Priority Focus:</span>
@@ -300,22 +479,21 @@ export default function TutorWorkspace({
       )}
 
       {/* Subject Context Filter */}
-      {records.length > 0 && (
-        <div className="px-3 sm:px-4 py-2 border-b border-slate-800 bg-slate-900/60 flex items-center gap-2 shrink-0">
-          <BookOpen size={13} className="text-violet-400 shrink-0" />
-          <span className="text-[11px] text-slate-400 font-medium shrink-0">Context:</span>
-          <select
-            value={subjectFilter}
-            onChange={(e) => setSubjectFilter(e.target.value)}
-            className="w-full min-w-0 max-w-xs flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500 cursor-pointer"
-          >
-            <option value="all">All Subjects</option>
-            {records.map((r) => (
-              <option key={r.id} value={r.id}>{r.subject}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="px-3 sm:px-4 py-2 border-b border-slate-800 bg-slate-900/60 flex items-center gap-2 shrink-0">
+        <BookOpen size={13} className="text-violet-400 shrink-0" />
+        <span className="text-[11px] text-slate-400 font-medium shrink-0">Context:</span>
+        <select
+          value={records.length ? subjectFilter : "all"}
+          onChange={(e) => setSubjectFilter(e.target.value)}
+          disabled={records.length === 0}
+          className="w-full min-w-0 max-w-xs flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-violet-500 enabled:cursor-pointer disabled:opacity-70"
+        >
+          <option value="all">{records.length ? "All Subjects" : "No subjects in profile"}</option>
+          {records.map((r) => (
+            <option key={r.id} value={r.id}>{r.subject}</option>
+          ))}
+        </select>
+      </div>
 
       {/* Tutor Chat Feed */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-3 sm:py-4">
@@ -346,7 +524,7 @@ export default function TutorWorkspace({
 
               <div className="space-y-2.5 max-w-sm mx-auto text-left w-full px-1">
                 <div className="text-[10px] font-bold text-violet-400/80 uppercase tracking-widest text-center">
-                  ✨ Suggested Coaching Sessions
+                  {tutorMode === "quiz" ? "✨ Start a Practice Quiz" : "✨ Suggested Coaching"}
                 </div>
                 <div className="flex flex-col gap-2">
                   {starterPrompts.map((prompt, i) => (
@@ -402,6 +580,8 @@ export default function TutorWorkspace({
         onSend={handleSend}
         loading={loading}
         variant="tutor"
+        quizLength={quizLength}
+        setQuizLength={setQuizLength}
       />
     </div>
   );

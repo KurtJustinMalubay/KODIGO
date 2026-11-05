@@ -1,3 +1,4 @@
+import asyncio
 import json
 import mimetypes
 from datetime import datetime
@@ -54,17 +55,118 @@ TUTOR_SYS = (
     "   - NEVER use \\\\ (double backslash) for line breaks in plain text — use a regular newline or bullet point instead. "
 )
 TUTOR_QUIZ_SYS = (
-    "This is a professor-led practice quiz. Use the student's message and the provided "
-    "academic profile or study material to assess understanding through dialogue. "
-    "Ask exactly one clear question at a time, then wait for the student's response. "
-    "Do not give a list of questions or reveal the answer in the same turn. "
-    "When the student answers, briefly explain what they got right or should revisit, "
-    "then ask one next question that builds on their answer. "
-    "When a quiz or homework image is attached, use it to identify the relevant topic "
-    "and ask a similar practice question rather than solving the uploaded assessment. "
-    "If the student explicitly asks to work through the exact problem, guide them with "
-    "one hint or question at a time instead of jumping to the final answer."
+    "You are a QUIZ GENERATOR, not a tutor or conversational coach. The first response "
+    "must be the entire quiz. Do not explain the topic first, do not greet the student, "
+    "do not ask a follow-up question, and do not give only one sample question. "
+    "Create a multiple-choice practice quiz using the topic in the student's latest "
+    "message and the supplied academic profile or study materials. The requested "
+    "question count is {question_count}; generate exactly that many complete questions "
+    "in this response. Every question must have four plausible options. Do not "
+    "reveal answers in question text or option labels. Include the correct option ID "
+    "and a concise teaching explanation for every question; the UI keeps them hidden "
+    "until the student checks or reveals each answer. Use a range of understanding "
+    "and application questions and target known weak areas when relevant. Treat each "
+    "request as a fresh quiz. If an image is attached, use it to identify the topic and "
+    "create related practice questions rather than solving the assessment shown. If no "
+    "topic is supplied, use the selected subject and profile context without asking. "
+    "Return ONLY valid JSON with exactly the requested number of questions, no Markdown "
+    "fences, preamble, lesson, or follow-up text, using this shape: "
+    "{\"title\":\"Short quiz title\",\"questions\":["
+    "{\"question\":\"Question text\",\"options\":[{\"id\":\"A\",\"text\":\"Option\"},"
+    "{\"id\":\"B\",\"text\":\"Option\"},{\"id\":\"C\",\"text\":\"Option\"},"
+    "{\"id\":\"D\",\"text\":\"Option\"}],\"answer\":\"A\","
+    "\"explanation\":\"Why A is correct.\"}]}. "
+    "Use standard Markdown within question and explanation strings only when helpful. "
+    "For math in strings, use LaTeX delimiters."
 )
+
+
+def _parse_tutor_quiz_response(content: str, expected_count: int):
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        cleaned = "\n".join(lines).strip()
+
+    try:
+        json_start = cleaned.find("{")
+        if json_start < 0:
+            return None
+        quiz, _ = json.JSONDecoder().raw_decode(cleaned[json_start:])
+    except json.JSONDecodeError:
+        return None
+
+    questions = quiz.get("questions") if isinstance(quiz, dict) else None
+    if (
+        not isinstance(quiz, dict)
+        or not isinstance(quiz.get("title"), str)
+        or not isinstance(questions, list)
+        or len(questions) != expected_count
+    ):
+        return None
+
+    for question in questions:
+        if not isinstance(question, dict) or not isinstance(question.get("question"), str):
+            return None
+        options = question.get("options")
+        answer = question.get("answer")
+        if (
+            not isinstance(options, list)
+            or len(options) != 4
+            or not isinstance(answer, str)
+            or not isinstance(question.get("explanation"), str)
+        ):
+            return None
+        option_ids = {
+            option.get("id", "").upper()
+            for option in options
+            if isinstance(option, dict)
+            and isinstance(option.get("id"), str)
+            and isinstance(option.get("text"), str)
+        }
+        if len(option_ids) != 4 or answer.upper() not in option_ids:
+            return None
+
+    return json.dumps(quiz, ensure_ascii=False)
+
+
+async def _generate_tutor_quiz(settings, system, messages, image_bytes, image_mime, expected_count):
+    quiz_prompt = system.replace("{question_count}", str(expected_count))
+
+    for attempt in range(2):
+        retry_prompt = quiz_prompt
+        if attempt:
+            retry_prompt += (
+                f"\n\nThe previous response did not match the required schema. Return "
+                f"valid JSON with exactly {expected_count} complete questions. No prose."
+            )
+        try:
+            reply = await generate(
+                settings,
+                retry_prompt,
+                messages,
+                image_bytes,
+                image_mime,
+                json_mode=True,
+            )
+        except RuntimeError as error:
+            retryable_statuses = ("(429)", "(500)", "(502)", "(503)", "(504)")
+            if attempt or not any(
+                status in str(error) for status in retryable_statuses
+            ):
+                raise
+            await asyncio.sleep(1)
+            continue
+
+        parsed = _parse_tutor_quiz_response(reply, expected_count)
+        if parsed:
+            return parsed
+
+    raise RuntimeError(
+        "The AI could not generate a complete quiz. Please try again or choose a shorter quiz."
+    )
 
 
 @router.get("/api/chats")
@@ -222,6 +324,7 @@ async def _prepare_chat_context(
     client_ocr_text: str,
     history_json: str,
     context_text: str,
+    quiz_length: int,
     db: Session,
     request: Request,
 ):
@@ -270,17 +373,21 @@ async def _prepare_chat_context(
     if not text and not image_bytes:
         raise HTTPException(400, "Empty message")
     if not text and image_bytes:
-        text = "Please solve this question or problem step-by-step."
+        text = (
+            "Create a full practice quiz based on the subject in the attached image."
+            if mode == "tutor_quiz"
+            else "Please solve this question or problem step-by-step."
+        )
 
     if mode == "quiz" and not image and len(text.split()) > 80:
         mode = "chat"
 
     if mode == "quiz":
         system = QUIZ_SYS
-    elif mode in ("tutor", "tutor_quiz"):
+    elif mode == "tutor_quiz":
+        system = TUTOR_QUIZ_SYS
+    elif mode == "tutor":
         system = TUTOR_SYS
-        if mode == "tutor_quiz":
-            system += " " + TUTOR_QUIZ_SYS
     else:
         system = CHAT_SYS
 
@@ -333,6 +440,7 @@ async def stream_chat_message(
     client_ocr_text: str = Form(""),
     history_json: str = Form(""),
     context_text: str = Form(""),
+    quiz_length: int = Form(5),
     db: Session = Depends(get_db),
 ):
     """
@@ -347,6 +455,7 @@ async def stream_chat_message(
         client_ocr_text=client_ocr_text,
         history_json=history_json,
         context_text=context_text,
+        quiz_length=quiz_length if quiz_length in (5, 10, 15) else 5,
         db=db,
         request=request,
     )
@@ -394,9 +503,21 @@ async def stream_chat_message(
         yield f"data: {json.dumps({'type': 'start', 'user': user_serialized, 'mode': active_mode}, default=str)}\n\n"
         full_tokens = []
         try:
-            async for delta in stream_generate(settings, system, msgs_payload, image_bytes, image_mime):
-                full_tokens.append(delta)
-                yield f"data: {json.dumps({'type': 'chunk', 'delta': delta})}\n\n"
+            if active_mode == "tutor_quiz":
+                final_reply = await _generate_tutor_quiz(
+                    settings,
+                    system,
+                    msgs_payload,
+                    image_bytes,
+                    image_mime,
+                    quiz_length if quiz_length in (5, 10, 15) else 5,
+                )
+                full_tokens.append(final_reply)
+                yield f"data: {json.dumps({'type': 'chunk', 'delta': final_reply})}\n\n"
+            else:
+                async for delta in stream_generate(settings, system, msgs_payload, image_bytes, image_mime):
+                    full_tokens.append(delta)
+                    yield f"data: {json.dumps({'type': 'chunk', 'delta': delta})}\n\n"
         except Exception as err:
             yield f"data: {json.dumps({'type': 'error', 'error': str(err)})}\n\n"
             return
@@ -447,6 +568,7 @@ async def send_message(
     client_ocr_text: str = Form(""),
     history_json: str = Form(""),
     context_text: str = Form(""),
+    quiz_length: int = Form(5),
     db: Session = Depends(get_db),
 ):
     prepared = await _prepare_chat_context(
@@ -457,6 +579,7 @@ async def send_message(
         client_ocr_text=client_ocr_text,
         history_json=history_json,
         context_text=context_text,
+        quiz_length=quiz_length if quiz_length in (5, 10, 15) else 5,
         db=db,
         request=request,
     )
@@ -472,13 +595,24 @@ async def send_message(
     image_mime = prepared["image_mime"]
 
     try:
-        reply = await generate(
-            settings,
-            system,
-            history + [{"role": "user", "content": text}],
-            image_bytes=image_bytes,
-            image_mime=image_mime,
-        )
+        messages = history + [{"role": "user", "content": text}]
+        if active_mode == "tutor_quiz":
+            reply = await _generate_tutor_quiz(
+                settings,
+                system,
+                messages,
+                image_bytes,
+                image_mime,
+                quiz_length if quiz_length in (5, 10, 15) else 5,
+            )
+        else:
+            reply = await generate(
+                settings,
+                system,
+                messages,
+                image_bytes=image_bytes,
+                image_mime=image_mime,
+            )
     except Exception as error:
         raise HTTPException(502, f"AI provider error: {error}") from error
 
