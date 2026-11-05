@@ -405,8 +405,10 @@ async def _prepare_chat_context(
     reference_corpus = ""
     if include_context:
         reference_corpus = context_text.strip() if context_text else (build_context(db, chat.id) if chat.id else "")
+    context_limit = context_limit if context_limit in (12000, 24000, 48000) else 12000
+    if mode == "tutor_quiz":
+        context_limit = min(context_limit, 8000)
     if reference_corpus:
-        context_limit = context_limit if context_limit in (12000, 24000, 48000) else 12000
         system += "\n\nReference material:\n" + reference_corpus[:context_limit]
 
     history = []
