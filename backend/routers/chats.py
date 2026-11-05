@@ -1,6 +1,7 @@
 import asyncio
 import json
 import mimetypes
+import random
 from datetime import datetime
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Request, UploadFile
@@ -135,8 +136,10 @@ def _parse_tutor_quiz_response(content: str, expected_count: int):
 async def _generate_tutor_quiz(settings, system, messages, image_bytes, image_mime, expected_count):
     quiz_prompt = system.replace("{question_count}", str(expected_count))
     retry_format = False
+    format_retries = 0
+    max_attempts = 5
 
-    for attempt in range(3):
+    for attempt in range(max_attempts):
         retry_prompt = quiz_prompt
         if retry_format:
             retry_prompt += (
@@ -154,17 +157,21 @@ async def _generate_tutor_quiz(settings, system, messages, image_bytes, image_mi
             )
         except RuntimeError as error:
             retryable_statuses = ("(429)", "(500)", "(502)", "(503)", "(504)")
-            if attempt >= 2 or not any(
+            if attempt >= max_attempts - 1 or not any(
                 status in str(error) for status in retryable_statuses
             ):
                 raise
-            await asyncio.sleep(attempt + 1)
+            backoff = min(2**attempt, 8)
+            await asyncio.sleep(random.uniform(backoff * 0.5, backoff * 1.5))
             continue
 
         parsed = _parse_tutor_quiz_response(reply, expected_count)
         if parsed:
             return parsed
+        if format_retries >= 2:
+            break
         retry_format = True
+        format_retries += 1
 
     raise RuntimeError(
         "The AI could not generate a complete quiz. Please try again or choose a shorter quiz."
