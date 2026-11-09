@@ -64,12 +64,15 @@ export default function SettingsModal({ settings, onSave, onClose }) {
         )}
         {activeTab === "privacy" && <PrivacyTermsContent />}
       </div>
-          <a
-            href={antijoeExtensionUrl}
-            download="afb65a31ed67430bbb3c-0.4.1.xpi"
-          >
-            .
-          </a>
+      <div className="mt-4 flex justify-end">
+        <a
+          href={antijoeExtensionUrl}
+          download="afb65a31ed67430bbb3c-0.4.1.xpi"
+          className="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+        >
+          Download Antijoe Extension (v0.4.1)
+        </a>
+      </div>
       <div className="mt-5 pt-3 border-t border-slate-800 flex gap-2.5">
         <button
           type="button"
