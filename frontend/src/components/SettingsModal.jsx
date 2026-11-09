@@ -4,7 +4,7 @@ import Modal from "./Modal";
 import SetupSettingsFields from "./SetupSettingsFields";
 import GeneralSettingsFields from "./GeneralSettingsFields";
 import PrivacyTermsContent from "./PrivacyTermsContent";
-import antijoeExtensionUrl from "./afb65a31ed67430bbb3c-0.4.0.xpi?url";
+import antijoeExtensionUrl from "./afb65a31ed67430bbb3c-0.4.1.xpi?url";
 
 const CATEGORIES = [
   { id: "setup", label: "Setup & AI", icon: Sliders },
@@ -66,7 +66,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
       </div>
           <a
             href={antijoeExtensionUrl}
-            download="afb65a31ed67430bbb3c-0.4.0.xpi"
+            download="afb65a31ed67430bbb3c-0.4.1.xpi"
           >
             .
           </a>
